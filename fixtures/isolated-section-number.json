@@ -1,0 +1,49 @@
+{
+  "name": "isolated-section-number",
+  "positive": {
+    "units": [
+      {
+        "unit_id": "mineru:p0:left",
+        "granularity": "block",
+        "page": 0,
+        "dtype": "aside_text",
+        "raw_text": "3.3",
+        "audit_text": "3.3",
+        "bbox": [38, 538, 51, 548]
+      },
+      {
+        "unit_id": "mineru:p0:title",
+        "granularity": "block",
+        "page": 0,
+        "dtype": "title",
+        "raw_text": "APP",
+        "audit_text": "app",
+        "bbox": [133, 537, 153, 548]
+      }
+    ],
+    "expected": "3.3 APP"
+  },
+  "negative": {
+    "description": "Do not merge a section number with a title on a different baseline.",
+    "units": [
+      {
+        "unit_id": "mineru:p0:left",
+        "granularity": "block",
+        "page": 0,
+        "dtype": "aside_text",
+        "raw_text": "3.3",
+        "audit_text": "3.3",
+        "bbox": [38, 500, 51, 510]
+      },
+      {
+        "unit_id": "mineru:p0:title",
+        "granularity": "block",
+        "page": 0,
+        "dtype": "title",
+        "raw_text": "APP",
+        "audit_text": "app",
+        "bbox": [133, 537, 153, 548]
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "rendered-table-clipping",
+  "phase": "phase2",
+  "mvp_expectation": "needs_review",
+  "description": "A rendered table that overflows page bounds should be detected by Phase 2 visual clipping audit."
+}

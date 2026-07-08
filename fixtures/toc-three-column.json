@@ -1,0 +1,14 @@
+{
+  "name": "toc-three-column",
+  "positive": {
+    "description": "TOC rows have separate number, title, and page columns.",
+    "rows": [
+      {"number": "4.2", "title": "Services", "page": "7"},
+      {"number": "7.16", "title": "Monitoring parameters at the delivery point - Abnormal flow rate", "page": "72"}
+    ]
+  },
+  "negative": {
+    "description": "A normal paragraph with a number should not be rewritten as a TOC row.",
+    "text": "The value 4.2 is used as a protocol parameter in this example."
+  }
+}

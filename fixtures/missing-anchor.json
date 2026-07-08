@@ -1,0 +1,8 @@
+{
+  "name": "missing-anchor",
+  "source_audit_text": "Section 4.2.1 Service: Synchronization. Table 1 lists requirements.",
+  "output_audit_text": "Section Service: Synchronization lists requirements.",
+  "expected": {
+    "content_loss": ["4.2.1", "Table 1"]
+  }
+}

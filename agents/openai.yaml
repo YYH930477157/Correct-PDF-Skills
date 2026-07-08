@@ -1,0 +1,7 @@
+interface:
+  display_name: "PDF Layout Repair"
+  short_description: "Audit and repair malformed PDF extraction"
+  default_prompt: "Use $pdf-layout-repair to repair this malformed PDF extraction and audit for silent content loss."
+
+policy:
+  allow_implicit_invocation: true
