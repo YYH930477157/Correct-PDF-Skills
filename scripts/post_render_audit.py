@@ -1,26 +1,45 @@
 #!/usr/bin/env python3
-"""Post-render anchor audit for generated PDFs or text files."""
+"""Post-render anchor audit for generated PDFs, HTML, or text files."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 
 ANCHOR_RE = re.compile(r"\b(?:\d+(?:\.\d+)+|Table\s+\d+|Figure\s+\d+|Appendix\s+[A-Z])\b", re.I)
 
 
+class TextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def text(self) -> str:
+        return " ".join(self.parts)
+
+
 def extract_text(path: Path) -> str:
-    if path.suffix.lower() == ".pdf":
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
         try:
             import fitz
         except Exception as exc:  # pragma: no cover
             raise SystemExit(f"PyMuPDF is required for PDF audit: {exc}")
         doc = fitz.open(path)
         return "\n".join(page.get_text("text") or "" for page in doc)
-    return path.read_text(encoding="utf-8")
+    raw = path.read_text(encoding="utf-8-sig")
+    if suffix in {".html", ".htm"}:
+        parser = TextExtractor()
+        parser.feed(raw)
+        return parser.text()
+    return raw
 
 
 def main() -> int:
@@ -33,21 +52,25 @@ def main() -> int:
     rendered_text = extract_text(args.rendered_artifact)
     rendered_anchors = {m.group(0).lower() for m in ANCHOR_RE.finditer(rendered_text)}
     expected = set()
-    for item in report.get("content_loss", []):
-        expected.update(a.lower() for a in item.get("anchors", []))
-    # If completeness already failed, preserve review status; otherwise this MVP verifies artifact is readable.
+    g3 = report.get("audits", {}).get("G3_anchor_audit", {})
+    expected.update(a.lower() for a in g3.get("missing_required", []))
+    expected.update(a.lower() for a in g3.get("required_source_anchors", []))
+
     post_render_loss = []
     if not rendered_text.strip():
         post_render_loss.append({"rule_id": "I1", "reason": "rendered_text_empty"})
+    missing_after_render = sorted(expected - rendered_anchors)
+    if missing_after_render:
+        post_render_loss.append({"rule_id": "I2", "reason": "required_anchor_missing_after_render", "anchors": missing_after_render})
     status = "review" if post_render_loss or report.get("document_status") == "review" else report.get("document_status", "draft")
     result = {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
         "document_status": status,
         "rendered_artifact": str(args.rendered_artifact),
         "completeness_report": str(args.completeness_report),
         "rendered_anchor_count": len(rendered_anchors),
         "post_render_loss": post_render_loss,
-        "visual_clipping": {"status": "not_implemented", "result": "needs_review_if_applicable"},
+        "visual_clipping": {"status": "not_configured", "reason": "image/OCR visual clipping audit requires optional renderer integration"},
     }
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(args.output)

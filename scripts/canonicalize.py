@@ -10,6 +10,9 @@ import sys
 import unicodedata
 
 
+BULLET_LIKE = ("\u2022", "\u25aa", "\u25cf", "\u2212", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014")
+
+
 def normalize_for_audit(text: str, *, lowercase: bool = True) -> str:
     """Return an audit-only normalized view. Do not use this as output text."""
     text = html.unescape(text or "")
@@ -17,7 +20,8 @@ def normalize_for_audit(text: str, *, lowercase: bool = True) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(r"([A-Za-z])-\n([A-Za-z])", r"\1\2", text)
     text = text.replace("\n", " ")
-    text = text.replace("•", "-").replace("‣", "-").replace("▪", "-")
+    for bullet in BULLET_LIKE:
+        text = text.replace(bullet, "-")
     text = re.sub(r"\s+", " ", text).strip()
     return text.lower() if lowercase else text
 

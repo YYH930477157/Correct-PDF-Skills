@@ -34,9 +34,11 @@ G1 page coverage:
 - Every source page has source units and output disposition.
 - Empty pages require explicit `empty_or_noise` or review.
 
-G2 text amount, Phase 2:
+G2 text amount:
 
-- Compare PyMuPDF text-layer evidence and rendered-page OCR evidence.
+- Compare source inventory block text to repaired output text per page.
+- Coverage below threshold is `content_loss`.
+- PyMuPDF text-layer evidence and rendered-page OCR evidence are optional stronger evidence.
 - OCR is audit evidence only; it must not overwrite content.
 - `ocr_unavailable`, `ocr_low_confidence`, and `ocr_timeout` become `needs_review`.
 
@@ -55,6 +57,7 @@ G5 semantic sampling, Phase 2:
 
 - Fixed-seed AI sampling checks whether source paragraphs are represented in output.
 - AI returns review findings or suggested operations, never direct text edits.
+- Until an LLM API is configured, G5 outputs `needs_review` with `not_configured`.
 
 ## MVP Thresholds
 

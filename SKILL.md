@@ -19,18 +19,13 @@ Priority order:
 
 ## Workflow
 
-Use the MVP path first. Expand to Phase 2 only after MVP fixtures pass and the audit chain is stable.
+Use `scripts/run_pipeline.py` for the normal path. Run individual scripts only when debugging.
 
 1. Preflight the PDF with `scripts/detect_pdf_type.py`.
 2. Parse with MinerU remote API using `scripts/call_mineru_api.py`, or use existing MinerU JSON/Markdown artifacts.
-3. Build `source_inventory.json` with `scripts/build_inventory.py`.
-4. Apply MVP repairs with `scripts/apply_repairs.py`.
-5. Build `repair_manifest.json` with `scripts/build_manifest.py`.
-6. Run `scripts/completeness_audit.py`.
-7. Render a report with `scripts/render_report.py`.
-8. Generate PDF with the available PDF/document skill. If unavailable, use HTML + Chrome headless fallback.
-9. Run `scripts/post_render_audit.py`.
-10. Deliver `final` only if both quality gates pass. Otherwise deliver `draft` or `review`.
+3. Run `scripts/run_pipeline.py INPUT -o OUTDIR`.
+4. Inspect the four-piece audit set and `pipeline_summary.json`.
+5. Deliver `final` only if both quality gates pass. Otherwise deliver `draft` or `review`.
 
 ## Quality Gates
 
@@ -53,26 +48,32 @@ Manual override may downgrade noise but cannot promote directly to `final`. To p
 Implemented in the first pass:
 
 - A1 isolated section-number merge.
+- B1 adjacent paragraph-fragment join.
+- D0 TOC three-column row rebuild.
+- D1 bullet normalization.
+- E1 explicit symbol corruption repair.
 - G1 page coverage.
-- G3 required/candidate anchor audit, basic version.
-- G4 figure/table/caption audit, basic version.
+- G2 page text amount audit.
+- G3 required/candidate anchor audit.
+- G4 figure/table/caption audit.
+- G5 AI semantic sampling placeholder; API intentionally blank.
 - H provenance, raw/audit text separation, bbox space fields.
-- I post-render anchor audit, basic version.
+- I post-render anchor audit for PDF/HTML/text.
 - J privacy/token/logging constraints.
 
-Everything else must be reported as `not_implemented` and, if applicable to the document, `needs_review`.
+Everything else must be reported as `needs_review`, `suggest_patch`, or an explicit not-configured placeholder.
 
 ## Rule Classes
 
 | Class | Scope | MVP |
 | --- | --- | --- |
-| A | Structural defects: section numbers, headings, title/body splits | A1 only |
-| B | Paragraph joins and cross-page paragraph repair | Phase 2 |
+| A | Structural defects: section numbers, headings, title/body splits | A1 implemented; A2-A5 review/suggest |
+| B | Paragraph joins and cross-page paragraph repair | B1 implemented; B2-B3 review/suggest |
 | C | Content contamination: footnotes, headers, foreign-language/cross-column pollution | Phase 2 |
-| D | Lists, bullets, tables, captions | Phase 2; TOC three-column repair is specified but not implemented |
-| E | Encoding, symbols, units, formulas | Phase 2 |
+| D | Lists, bullets, tables, captions | D0/D1 implemented; D2-D4 review/suggest |
+| E | Encoding, symbols, units, formulas | E1 explicit map implemented; E2-E3 review |
 | F | Sequence integrity for sections, tables, figures, terms | Phase 2 |
-| G | Completeness audit | G1/G3/G4 basic |
+| G | Completeness audit | G1-G4 implemented; G5 placeholder |
 | H | Provenance | MVP |
 | I | Post-render audit | Anchor audit MVP; visual clipping Phase 2 |
 | J | Privacy/copyright and remote API safety | MVP |
@@ -88,6 +89,7 @@ Read only what is needed:
 - `references/confidence-policy.md`: quality gates, status calculation, thresholds, override policy.
 - `references/pdf-generation.md`: PDF generation handoff and HTML/Chrome fallback.
 - `references/local-deploy.md`: local MinerU/PyMuPDF4LLM/Tesseract upgrade path.
+- `references/llm-review-protocol.md`: AI/LLM semantic review contract; API fields are intentionally blank.
 
 ## Privacy Rules
 

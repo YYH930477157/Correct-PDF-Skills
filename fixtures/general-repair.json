@@ -1,0 +1,74 @@
+{
+  "name": "general-repair",
+  "units": [
+    {
+      "unit_id": "u:toc-num",
+      "granularity": "block",
+      "page": 1,
+      "dtype": "toc_number",
+      "raw_text": "4.2",
+      "audit_text": "4.2",
+      "bbox": [40, 100, 62, 112]
+    },
+    {
+      "unit_id": "u:toc-title",
+      "granularity": "block",
+      "page": 1,
+      "dtype": "toc_title",
+      "raw_text": "Services",
+      "audit_text": "services",
+      "bbox": [120, 100, 220, 112]
+    },
+    {
+      "unit_id": "u:toc-page",
+      "granularity": "block",
+      "page": 1,
+      "dtype": "toc_page",
+      "raw_text": "7",
+      "audit_text": "7",
+      "bbox": [510, 100, 518, 112]
+    },
+    {
+      "unit_id": "u:p1",
+      "granularity": "block",
+      "page": 2,
+      "dtype": "text",
+      "raw_text": "The system shall provide secure remote",
+      "audit_text": "the system shall provide secure remote",
+      "bbox": [40, 160, 320, 174]
+    },
+    {
+      "unit_id": "u:p2",
+      "granularity": "block",
+      "page": 2,
+      "dtype": "text",
+      "raw_text": "reading for each meter.",
+      "audit_text": "reading for each meter.",
+      "bbox": [40, 177, 200, 191]
+    },
+    {
+      "unit_id": "u:bullet",
+      "granularity": "block",
+      "page": 2,
+      "dtype": "list",
+      "raw_text": "− communication status",
+      "audit_text": "- communication status",
+      "bbox": [60, 220, 260, 234]
+    },
+    {
+      "unit_id": "u:symbol",
+      "granularity": "block",
+      "page": 2,
+      "dtype": "text",
+      "raw_text": "Pressure \u0177 16 bar",
+      "audit_text": "pressure \u0177 16 bar",
+      "bbox": [40, 260, 180, 274]
+    }
+  ],
+  "expected": {
+    "toc_text": "4.2 Services 7",
+    "joined_paragraph": "The system shall provide secure remote reading for each meter.",
+    "bullet_text": "- communication status",
+    "symbol_text": "Pressure <= 16 bar"
+  }
+}

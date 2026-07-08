@@ -1,24 +1,27 @@
 # PDF Generation
 
-PDF generation consumes structured Markdown/JSON only. It must not repair content.
+PDF generation consumes `repaired_blocks.json`. It must not repair or invent content.
 
-Preferred:
+Built-in path:
 
-- Use `document-skills:pdf` or available report/PDF skill with ReportLab/report brief.
+```bash
+python scripts/run_pipeline.py source.json -o out
+```
 
-Fallback:
+Outputs:
 
-- Render print-friendly HTML.
-- Use Chrome/Edge headless print to PDF.
-- Run `post_render_audit.py` afterward.
+- `repaired.html` is always created.
+- `repaired.pdf` is created only when a headless Chrome-compatible binary is available and `--no-pdf` is not set.
+- `post_render_audit.json` must be generated after HTML/PDF output.
+
+Preferred external handoff:
+
+- If a document/PDF skill is available, pass `repaired_blocks.json`, `repair_manifest.json`, `completeness_report.json`, and source metadata.
+- The external generator must preserve section anchors, table/figure captions, lists, tables, and paragraph order.
+- Run `post_render_audit.py` against the final PDF afterward.
 
 Renderer failures:
 
 - Fix renderer or layout CSS.
 - Do not reparse the source PDF as a rendering workaround.
-
-Final/draft/review status must be visible in:
-
-- PDF first page,
-- report header,
-- output filename.
+- Missing anchors after render are `post_render_loss`.

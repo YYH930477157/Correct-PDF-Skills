@@ -129,6 +129,21 @@ def test_missing_anchor(tmp: Path) -> None:
     assert_true({"4.2.1", "table 1"}.issubset(missing), "G3 did not report missing required anchors")
 
 
+def test_general_repairs(tmp: Path) -> None:
+    fixture = read_json(FIXTURES / "general-repair.json")
+    expected = fixture["expected"]
+    result = run_chain(tmp / "general-repair", fixture["units"], "\n".join(expected.values()))
+    texts = [b.get("raw_text") for b in result["repaired"]["output_blocks"]]
+    operations = {b.get("operation") for b in result["repaired"]["output_blocks"]}
+    rule_ids = {f.get("rule_id") for f in result["completeness"]["auto_fixed"]}
+    assert_true(expected["toc_text"] in texts, "TOC three-column row was not rebuilt")
+    assert_true(expected["joined_paragraph"] in texts, "Paragraph continuation was not joined")
+    assert_true(expected["bullet_text"] in texts, "Bullet was not normalized")
+    assert_true(expected["symbol_text"] in texts, "Symbol corruption was not repaired")
+    assert_true({"D0", "B1", "D1", "E1"}.issubset(rule_ids), "Expected rule findings are missing")
+    assert_true("TOC_three_column_repair" in operations, "TOC operation missing")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run pdf-layout-repair fixture smoke tests.")
     parser.add_argument("--keep", action="store_true", help="Keep temporary artifacts and print their path.")
@@ -136,11 +151,12 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="pdf-layout-repair-fixtures-") as tmp_name:
         tmp = Path(tmp_name)
-        for child in ("a1-positive", "a1-negative"):
+        for child in ("a1-positive", "a1-negative", "general-repair"):
             (tmp / child).mkdir(parents=True, exist_ok=True)
         test_a1_positive(tmp)
         test_a1_negative(tmp)
         test_missing_anchor(tmp)
+        test_general_repairs(tmp)
         if args.keep:
             keep_path = Path(tempfile.gettempdir()) / "pdf-layout-repair-fixtures-last"
             if keep_path.exists():
