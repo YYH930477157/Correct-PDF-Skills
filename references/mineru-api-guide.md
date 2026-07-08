@@ -19,3 +19,19 @@ Token rules:
 - Never log full document text.
 
 If document sensitivity is unknown, ask before upload.
+
+Generic API call:
+
+```bash
+set MINERU_TOKEN=...
+python scripts/call_mineru_api.py source.pdf --endpoint https://... --allow-upload -o mineru_response.json
+```
+
+The wrapper supports:
+
+- `--file-field` for multipart file field name,
+- `--param KEY=VALUE` for extra form fields,
+- `--header KEY=VALUE` for extra headers,
+- `--token-env` when the token environment variable is not `MINERU_TOKEN`.
+
+It never writes the token to output artifacts.

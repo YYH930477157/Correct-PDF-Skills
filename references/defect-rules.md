@@ -27,7 +27,7 @@ No negative fixture means no `auto_fix`.
 | G4 figure/table basic | high | audit | Captions and table/figure blocks are audited. Vector density is evidence in MVP. |
 | G5 semantic sampling | high | needs_review | Placeholder until an LLM API is configured; never invents content. |
 
-## Phase 2
+## Review/Suggest Rules Without Auto-Fix
 
 | Rule | Risk | Default |
 | --- | --- | --- |

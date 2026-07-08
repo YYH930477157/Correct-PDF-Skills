@@ -21,9 +21,9 @@ Priority order:
 
 Use `scripts/run_pipeline.py` for the normal path. Run individual scripts only when debugging.
 
-1. Preflight the PDF with `scripts/detect_pdf_type.py`.
+1. Preflight the PDF with `scripts/detect_pdf_type.py` when the source PDF is available.
 2. Parse with MinerU remote API using `scripts/call_mineru_api.py`, or use existing MinerU JSON/Markdown artifacts.
-3. Run `scripts/run_pipeline.py INPUT -o OUTDIR`.
+3. Run `scripts/run_pipeline.py INPUT -o OUTDIR`; add `--source-pdf SOURCE.pdf` for independent PyMuPDF source audit.
 4. Inspect the four-piece audit set and `pipeline_summary.json`.
 5. Deliver `final` only if both quality gates pass. Otherwise deliver `draft` or `review`.
 
@@ -66,7 +66,7 @@ Implemented in the first pass:
 - G4 figure/table/caption audit.
 - G5 AI semantic sampling placeholder; API intentionally blank.
 - H provenance, raw/audit text separation, bbox space fields.
-- I post-render anchor audit for PDF/HTML/text.
+- I post-render anchor audit for PDF/HTML/text and PDF bbox clipping audit.
 - J privacy/token/logging constraints.
 
 Everything else must be reported as `needs_review`, `suggest_patch`, or an explicit not-configured placeholder.
@@ -83,7 +83,7 @@ Everything else must be reported as `needs_review`, `suggest_patch`, or an expli
 | F | Sequence integrity for sections, tables, figures, terms | F1/F2 review; F3 review when detected |
 | G | Completeness audit | G1-G4 implemented; G5 placeholder |
 | H | Provenance | MVP |
-| I | Post-render audit | Anchor audit MVP; visual clipping Phase 2 |
+| I | Post-render audit | Anchor and PDF bbox clipping audit |
 | J | Privacy/copyright and remote API safety | MVP |
 
 ## References
@@ -93,7 +93,7 @@ Read only what is needed:
 - `references/mineru-api-guide.md`: MinerU remote API, token, version metadata.
 - `references/provenance-model.md`: `source_inventory.json`, `repair_manifest.json`, `raw_text`/`audit_text`, bbox spaces, discard whitelist.
 - `references/completeness-check.md`: G-class audits, page profiles, anchors, canonicalization, OCR failure policy.
-- `references/defect-rules.md`: A-J rule definitions and MVP/Phase 2 status.
+- `references/defect-rules.md`: A-J rule definitions and implemented/not-configured status.
 - `references/confidence-policy.md`: quality gates, status calculation, thresholds, override policy.
 - `references/pdf-generation.md`: PDF generation handoff and HTML/Chrome fallback.
 - `references/local-deploy.md`: local MinerU/PyMuPDF4LLM/Tesseract upgrade path.

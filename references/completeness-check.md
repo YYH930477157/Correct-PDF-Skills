@@ -38,8 +38,8 @@ G2 text amount:
 
 - Compare source inventory block text to repaired output text per page.
 - Coverage below threshold is `content_loss`.
-- PyMuPDF text-layer evidence and rendered-page OCR evidence are optional stronger evidence.
-- OCR is audit evidence only; it must not overwrite content.
+- `source_pdf_audit.py` provides independent PyMuPDF text/image/vector evidence when the source PDF is available.
+- OCR, when added by the operator, is audit evidence only; it must not overwrite content.
 - `ocr_unavailable`, `ocr_low_confidence`, and `ocr_timeout` become `needs_review`.
 
 G3 anchor audit:
@@ -53,7 +53,7 @@ G4 figure/table audit:
 - Count table blocks, figure blocks, captions, embedded images, and vector/drawing evidence.
 - MVP uses table/figure/caption anchors and vector density as evidence, not a hard blocker by itself.
 
-G5 semantic sampling, Phase 2:
+G5 semantic sampling:
 
 - Fixed-seed AI sampling checks whether source paragraphs are represented in output.
 - AI returns review findings or suggested operations, never direct text edits.
@@ -64,5 +64,5 @@ G5 semantic sampling, Phase 2:
 - `text_page`: coverage below `0.92` is `content_loss`.
 - `table_page`: missing required table anchors is `content_loss`; text coverage is secondary.
 - `toc_page`: missing TOC structural entries is `content_loss`.
-- `scan_page`: OCR coverage applies in Phase 2; unavailable OCR means `needs_review`.
+- `scan_page`: source PDF audit reports text/image evidence; unavailable OCR means `needs_review` if text coverage is insufficient.
 - `figure_heavy_page`: missing required captions is `content_loss`.

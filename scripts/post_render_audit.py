@@ -8,6 +8,7 @@ import json
 import re
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import Any
 
 
 ANCHOR_RE = re.compile(r"\b(?:\d+(?:\.\d+)+|Table\s+\d+|Figure\s+\d+|Appendix\s+[A-Z])\b", re.I)
@@ -42,6 +43,29 @@ def extract_text(path: Path) -> str:
     return raw
 
 
+def pdf_visual_clipping(path: Path, margin: float = 2.0) -> dict[str, Any]:
+    if path.suffix.lower() != ".pdf":
+        return {"status": "skipped", "reason": "visual_clipping_requires_pdf"}
+    try:
+        import fitz
+    except Exception as exc:  # pragma: no cover
+        return {"status": "unavailable", "reason": f"PyMuPDF unavailable: {exc}"}
+    doc = fitz.open(path)
+    findings = []
+    for page_index, page in enumerate(doc):
+        rect = page.rect
+        blocks = page.get_text("blocks") or []
+        for block_index, block in enumerate(blocks):
+            bbox = block[:4]
+            if bbox[0] < rect.x0 - margin or bbox[1] < rect.y0 - margin or bbox[2] > rect.x1 + margin or bbox[3] > rect.y1 + margin:
+                findings.append({"page": page_index, "kind": "text_block", "index": block_index, "bbox": list(bbox)})
+        for drawing_index, drawing in enumerate(page.get_drawings()):
+            drect = drawing.get("rect")
+            if drect and (drect.x0 < rect.x0 - margin or drect.y0 < rect.y0 - margin or drect.x1 > rect.x1 + margin or drect.y1 > rect.y1 + margin):
+                findings.append({"page": page_index, "kind": "drawing", "index": drawing_index, "bbox": [drect.x0, drect.y0, drect.x1, drect.y1]})
+    return {"status": "checked", "finding_count": len(findings), "findings": findings[:200]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run post-render anchor audit.")
     parser.add_argument("rendered_artifact", type=Path)
@@ -62,6 +86,9 @@ def main() -> int:
     missing_after_render = sorted(expected - rendered_anchors)
     if missing_after_render:
         post_render_loss.append({"rule_id": "I2", "reason": "required_anchor_missing_after_render", "anchors": missing_after_render})
+    clipping = pdf_visual_clipping(args.rendered_artifact)
+    if clipping.get("finding_count", 0):
+        post_render_loss.append({"rule_id": "I3", "reason": "rendered_content_outside_page_bounds", "finding_count": clipping["finding_count"]})
     status = "review" if post_render_loss or report.get("document_status") == "review" else report.get("document_status", "draft")
     result = {
         "schema_version": "0.2",
@@ -70,7 +97,7 @@ def main() -> int:
         "completeness_report": str(args.completeness_report),
         "rendered_anchor_count": len(rendered_anchors),
         "post_render_loss": post_render_loss,
-        "visual_clipping": {"status": "not_configured", "reason": "image/OCR visual clipping audit requires optional renderer integration"},
+        "visual_clipping": clipping,
     }
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(args.output)

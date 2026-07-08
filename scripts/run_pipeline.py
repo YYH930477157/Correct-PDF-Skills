@@ -40,6 +40,7 @@ def main() -> int:
     parser.add_argument("--input-kind", choices=["mineru-json", "inventory"], default="mineru-json")
     parser.add_argument("--title", default="Repaired PDF")
     parser.add_argument("--no-pdf", action="store_true", help="Render HTML only.")
+    parser.add_argument("--source-pdf", type=Path, help="Optional original PDF for independent preflight/source audit.")
     args = parser.parse_args()
 
     out = args.output_dir
@@ -53,6 +54,15 @@ def main() -> int:
     rendered_artifact = html
     post = out / "post_render_audit.json"
     report = out / "repair_report.md"
+    preflight = out / "pdf_preflight.json"
+    source_audit = out / "source_pdf_audit.json"
+
+    optional_artifacts: dict[str, str | None] = {"pdf_preflight": None, "source_pdf_audit": None}
+    if args.source_pdf:
+        run(str(SCRIPTS / "detect_pdf_type.py"), str(args.source_pdf), "-o", str(preflight))
+        run(str(SCRIPTS / "source_pdf_audit.py"), str(args.source_pdf), "-o", str(source_audit))
+        optional_artifacts["pdf_preflight"] = str(preflight)
+        optional_artifacts["source_pdf_audit"] = str(source_audit)
 
     if args.input_kind == "inventory":
         inventory.write_text(args.input.read_text(encoding="utf-8-sig"), encoding="utf-8")
@@ -84,6 +94,7 @@ def main() -> int:
             "repair_report": str(report),
             "html": str(html),
             "pdf": str(pdf) if pdf.exists() else None,
+            **optional_artifacts,
         },
         "pdf_generation": pdf_generation,
         "llm_api": {"status": "not_configured", "reason": "left blank intentionally"},
