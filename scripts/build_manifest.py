@@ -28,6 +28,7 @@ def main() -> int:
         "output_blocks": repaired.get("output_blocks", []),
         "source_dispositions": dispositions,
         "findings": repaired.get("findings", []),
+        "needs_review": repaired.get("needs_review", []),
         "not_implemented": repaired.get("not_implemented", []),
     }
     args.output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

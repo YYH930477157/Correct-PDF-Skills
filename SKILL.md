@@ -48,10 +48,18 @@ Manual override may downgrade noise but cannot promote directly to `final`. To p
 Implemented in the first pass:
 
 - A1 isolated section-number merge.
+- A2 section number jump detection.
+- A3 heading/body contamination detection.
 - B1 adjacent paragraph-fragment join.
+- C3 foreign-language contamination detection.
 - D0 TOC three-column row rebuild.
 - D1 bullet normalization.
+- D3 table-like text in paragraph detection.
 - E1 explicit symbol corruption repair.
+- E2 suspicious unit detection.
+- E3 formula/encoding corruption detection.
+- F1 section sequence gap detection.
+- F2 table/figure sequence gap detection.
 - G1 page coverage.
 - G2 page text amount audit.
 - G3 required/candidate anchor audit.
@@ -67,12 +75,12 @@ Everything else must be reported as `needs_review`, `suggest_patch`, or an expli
 
 | Class | Scope | MVP |
 | --- | --- | --- |
-| A | Structural defects: section numbers, headings, title/body splits | A1 implemented; A2-A5 review/suggest |
+| A | Structural defects: section numbers, headings, title/body splits | A1 auto; A2/A3 review; A4/A5 suggest/review |
 | B | Paragraph joins and cross-page paragraph repair | B1 implemented; B2-B3 review/suggest |
-| C | Content contamination: footnotes, headers, foreign-language/cross-column pollution | Phase 2 |
-| D | Lists, bullets, tables, captions | D0/D1 implemented; D2-D4 review/suggest |
-| E | Encoding, symbols, units, formulas | E1 explicit map implemented; E2-E3 review |
-| F | Sequence integrity for sections, tables, figures, terms | Phase 2 |
+| C | Content contamination: footnotes, headers, foreign-language/cross-column pollution | C3 review; C1/C2/C4 review when detected |
+| D | Lists, bullets, tables, captions | D0/D1 auto; D3 review; D2/D4 review/suggest |
+| E | Encoding, symbols, units, formulas | E1 auto; E2/E3 review |
+| F | Sequence integrity for sections, tables, figures, terms | F1/F2 review; F3 review when detected |
 | G | Completeness audit | G1-G4 implemented; G5 placeholder |
 | H | Provenance | MVP |
 | I | Post-render audit | Anchor audit MVP; visual clipping Phase 2 |

@@ -144,6 +144,14 @@ def test_general_repairs(tmp: Path) -> None:
     assert_true("TOC_three_column_repair" in operations, "TOC operation missing")
 
 
+def test_review_rules(tmp: Path) -> None:
+    fixture = read_json(FIXTURES / "review-rules.json")
+    result = run_chain(tmp / "review-rules", fixture["units"], "\n".join(u["raw_text"] for u in fixture["units"]))
+    review_rule_ids = {item.get("rule_id") for item in result["completeness"]["needs_review"]}
+    expected = set(fixture["expected_review_rules"])
+    assert_true(expected.issubset(review_rule_ids), f"Review rules missing: {sorted(expected - review_rule_ids)}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run pdf-layout-repair fixture smoke tests.")
     parser.add_argument("--keep", action="store_true", help="Keep temporary artifacts and print their path.")
@@ -151,12 +159,13 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="pdf-layout-repair-fixtures-") as tmp_name:
         tmp = Path(tmp_name)
-        for child in ("a1-positive", "a1-negative", "general-repair"):
+        for child in ("a1-positive", "a1-negative", "general-repair", "review-rules"):
             (tmp / child).mkdir(parents=True, exist_ok=True)
         test_a1_positive(tmp)
         test_a1_negative(tmp)
         test_missing_anchor(tmp)
         test_general_repairs(tmp)
+        test_review_rules(tmp)
         if args.keep:
             keep_path = Path(tempfile.gettempdir()) / "pdf-layout-repair-fixtures-last"
             if keep_path.exists():

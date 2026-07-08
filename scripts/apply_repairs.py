@@ -26,6 +26,8 @@ SYMBOL_REPLACEMENTS = {
     "\u2264": "<=",
     "\u2265": ">=",
 }
+ITALIAN_TERMS = {"il", "la", "lo", "gli", "dei", "delle", "contatore", "deve", "essere", "configurato", "funzioni"}
+KNOWN_UNITS = {"bar", "m3/h", "m³/h", "m3", "m³", "l/h", "%", "s", "ms", "v", "hz"}
 
 
 def cy(unit: dict[str, Any]) -> float:
@@ -112,6 +114,77 @@ def repair_symbols(text: str) -> str:
     for old, new in SYMBOL_REPLACEMENTS.items():
         out = out.replace(old, new)
     return out
+
+
+def review(rule_id: str, source_refs: list[str], reason: str, severity: str = "needs_review", **extra: Any) -> dict[str, Any]:
+    item = {"rule_id": rule_id, "severity": severity, "source_refs": source_refs, "reason": reason}
+    item.update(extra)
+    return item
+
+
+def section_anchor(text: str) -> tuple[int, ...] | None:
+    match = re.match(r"^\s*(\d+(?:\.\d+)*)\b", text or "")
+    if not match:
+        return None
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def numbered_anchor(text: str, label: str) -> int | None:
+    match = re.search(rf"\b{label}\s+(\d+)\b", text or "", re.I)
+    return int(match.group(1)) if match else None
+
+
+def detect_review_items(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    sections: list[tuple[tuple[int, ...], str]] = []
+    tables: list[tuple[int, str]] = []
+    figures: list[tuple[int, str]] = []
+    for unit in sorted(blocks, key=reading_order):
+        text = unit.get("raw_text", "")
+        audit = unit.get("audit_text") or normalize_audit(text)
+        refs = [unit["unit_id"]]
+
+        anchor = section_anchor(text)
+        if anchor:
+            sections.append((anchor, unit["unit_id"]))
+            rest = re.sub(r"^\s*\d+(?:\.\d+)*\s+", "", text).strip()
+            if unit.get("dtype") in {"title", "heading"} and re.search(r"\b(?:shall|must|should|is|are|the following)\b", rest, re.I):
+                items.append(review("A3", refs, "heading_may_include_body_text", sample=text))
+
+        if len(ITALIAN_TERMS.intersection(set(re.findall(r"[a-zà-ÿ]+", audit.lower())))) >= 2:
+            items.append(review("C3", refs, "possible_foreign_language_contamination", sample=text))
+
+        if text.count("|") >= 3 and unit.get("dtype") not in {"table", "table_body"}:
+            items.append(review("D3", refs, "table_like_text_in_paragraph_block", sample=text))
+
+        for number, unit_text in re.findall(r"\b(\d+(?:[.,]\d+)?)\s+([A-Za-zµ³/%]+)\b", text):
+            if unit_text.lower() not in KNOWN_UNITS and not unit_text.lower().startswith("m3"):
+                items.append(review("E2", refs, "unknown_or_suspicious_unit", value=f"{number} {unit_text}", sample=text))
+                break
+
+        if re.search(r"(?:\?\?\?|<<|>>|�|□)", text):
+            items.append(review("E3", refs, "possible_formula_or_encoding_corruption", sample=text))
+
+        table_no = numbered_anchor(text, "Table")
+        if table_no is not None:
+            tables.append((table_no, unit["unit_id"]))
+        figure_no = numbered_anchor(text, "Figure")
+        if figure_no is not None:
+            figures.append((figure_no, unit["unit_id"]))
+
+    for prev, cur in zip(sections, sections[1:]):
+        prev_num, prev_ref = prev
+        cur_num, cur_ref = cur
+        if len(prev_num) == len(cur_num) and cur_num[:-1] == prev_num[:-1] and cur_num[-1] > prev_num[-1] + 1:
+            items.append(review("A2", [prev_ref, cur_ref], "section_number_jump", previous=".".join(map(str, prev_num)), current=".".join(map(str, cur_num))))
+            items.append(review("F1", [prev_ref, cur_ref], "section_sequence_gap", previous=".".join(map(str, prev_num)), current=".".join(map(str, cur_num))))
+
+    for label, seq in (("Table", tables), ("Figure", figures)):
+        for prev, cur in zip(seq, seq[1:]):
+            if cur[0] > prev[0] + 1:
+                items.append(review("F2", [prev[1], cur[1]], f"{label.lower()}_number_sequence_gap", previous=prev[0], current=cur[0]))
+
+    return items
 
 
 def apply_repairs(units: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -205,7 +278,8 @@ def apply_repairs(units: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], li
         else:
             outputs.append(output_block(f"out:{unit['unit_id']}", raw, [unit["unit_id"]], "emit", "emitted", unit.get("page")))
         used.add(unit["unit_id"])
-    return outputs, findings, []
+    review_items = detect_review_items(blocks)
+    return outputs, findings, review_items
 
 
 def main() -> int:

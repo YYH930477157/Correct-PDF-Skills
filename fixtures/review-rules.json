@@ -1,0 +1,87 @@
+{
+  "name": "review-rules",
+  "units": [
+    {
+      "unit_id": "r:heading-body",
+      "granularity": "block",
+      "page": 3,
+      "dtype": "title",
+      "raw_text": "4.2 Services The following services shall be provided by the remote system.",
+      "audit_text": "4.2 services the following services shall be provided by the remote system.",
+      "bbox": [40, 100, 520, 116]
+    },
+    {
+      "unit_id": "r:foreign",
+      "granularity": "block",
+      "page": 3,
+      "dtype": "text",
+      "raw_text": "Il contatore deve essere configurato before commissioning.",
+      "audit_text": "il contatore deve essere configurato before commissioning.",
+      "bbox": [40, 140, 420, 156]
+    },
+    {
+      "unit_id": "r:table-prose",
+      "granularity": "block",
+      "page": 3,
+      "dtype": "text",
+      "raw_text": "Parameter | Value | Unit Flow | 10 | m3/h Pressure | 16 | bar",
+      "audit_text": "parameter | value | unit flow | 10 | m3/h pressure | 16 | bar",
+      "bbox": [40, 180, 520, 196]
+    },
+    {
+      "unit_id": "r:unit",
+      "granularity": "block",
+      "page": 3,
+      "dtype": "text",
+      "raw_text": "The maximum flow is 10 xyz.",
+      "audit_text": "the maximum flow is 10 xyz.",
+      "bbox": [40, 220, 260, 236]
+    },
+    {
+      "unit_id": "r:formula",
+      "granularity": "block",
+      "page": 3,
+      "dtype": "text",
+      "raw_text": "Q = << ??? >>",
+      "audit_text": "q = << ??? >>",
+      "bbox": [40, 260, 160, 276]
+    },
+    {
+      "unit_id": "r:section-1",
+      "granularity": "block",
+      "page": 4,
+      "dtype": "title",
+      "raw_text": "4.2 Services",
+      "audit_text": "4.2 services",
+      "bbox": [40, 100, 180, 116]
+    },
+    {
+      "unit_id": "r:section-2",
+      "granularity": "block",
+      "page": 4,
+      "dtype": "title",
+      "raw_text": "4.4 Data model",
+      "audit_text": "4.4 data model",
+      "bbox": [40, 130, 190, 146]
+    },
+    {
+      "unit_id": "r:table-1",
+      "granularity": "block",
+      "page": 4,
+      "dtype": "caption",
+      "raw_text": "Table 1 - Requirements",
+      "audit_text": "table 1 - requirements",
+      "bbox": [40, 180, 240, 196]
+    },
+    {
+      "unit_id": "r:table-3",
+      "granularity": "block",
+      "page": 4,
+      "dtype": "caption",
+      "raw_text": "Table 3 - Messages",
+      "audit_text": "table 3 - messages",
+      "bbox": [40, 210, 220, 226]
+    }
+  ],
+  "expected_review_rules": ["A2", "A3", "C3", "D3", "E2", "E3", "F1", "F2"]
+}
