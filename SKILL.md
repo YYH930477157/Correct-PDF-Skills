@@ -62,7 +62,7 @@ Implemented in the first pass:
 - F2 table/figure sequence gap detection.
 - G1 page coverage.
 - G2 page text amount audit.
-- G3 required/candidate anchor audit.
+- G3 required/candidate anchor audit; G3P independent source-PDF anchor audit when source PDF is supplied.
 - G4 figure/table/caption audit.
 - G5 AI semantic sampling placeholder; API intentionally blank.
 - H provenance, raw/audit text separation, bbox space fields.
@@ -90,7 +90,7 @@ Everything else must be reported as `needs_review`, `suggest_patch`, or an expli
 
 Read only what is needed:
 
-- `references/mineru-api-guide.md`: MinerU remote API, token, version metadata.
+- `references/mineru-api-guide.md`: MinerU remote API modes, token, version metadata.
 - `references/provenance-model.md`: `source_inventory.json`, `repair_manifest.json`, `raw_text`/`audit_text`, bbox spaces, discard whitelist.
 - `references/completeness-check.md`: G-class audits, page profiles, anchors, canonicalization, OCR failure policy.
 - `references/defect-rules.md`: A-J rule definitions and implemented/not-configured status.

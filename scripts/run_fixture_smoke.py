@@ -144,6 +144,191 @@ def test_general_repairs(tmp: Path) -> None:
     assert_true("TOC_three_column_repair" in operations, "TOC operation missing")
 
 
+def test_general_repair_negatives(tmp: Path) -> None:
+    fixture = read_json(FIXTURES / "general-repair.json")
+    negative = fixture["negative"]
+
+    b1_result = run_chain(tmp / "negative-b1", negative["b1"]["units"], "\n".join(u["raw_text"] for u in negative["b1"]["units"]))
+    b1_texts = [b.get("raw_text") for b in b1_result["repaired"]["output_blocks"]]
+    assert_true(negative["b1"]["forbidden_text"] not in b1_texts, "B1 negative incorrectly joined independent paragraphs")
+
+    d1_result = run_chain(tmp / "negative-d1", negative["d1"]["units"], negative["d1"]["expected_text"])
+    d1_texts = [b.get("raw_text") for b in d1_result["repaired"]["output_blocks"]]
+    assert_true(negative["d1"]["expected_text"] in d1_texts, "D1 negative rewrote semantic hyphen text")
+    d1_rules = {f.get("rule_id") for f in d1_result["completeness"]["auto_fixed"]}
+    assert_true("D1" not in d1_rules, "D1 negative produced an auto_fix finding")
+
+    e1_result = run_chain(tmp / "negative-e1", negative["e1"]["units"], negative["e1"]["expected_text"])
+    e1_texts = [b.get("raw_text") for b in e1_result["repaired"]["output_blocks"]]
+    assert_true(negative["e1"]["expected_text"] in e1_texts, "E1 negative replaced a legal glyph")
+    e1_rules = {f.get("rule_id") for f in e1_result["completeness"]["auto_fixed"]}
+    assert_true("E1" not in e1_rules, "E1 negative produced an auto_fix finding")
+
+
+def test_g2_review_band(tmp: Path) -> None:
+    inventory = tmp / "g2-review-band" / "source_inventory.json"
+    repaired = tmp / "g2-review-band" / "repaired_blocks.json"
+    manifest = tmp / "g2-review-band" / "repair_manifest.json"
+    completeness = tmp / "g2-review-band" / "completeness_report.json"
+    inventory.parent.mkdir(parents=True, exist_ok=True)
+    source_text = "alpha beta gamma delta epsilon zeta eta theta iota kappa"
+    output_text = "alpha beta gamma delta epsilon zeta eta theta"
+    write_json(
+        inventory,
+        {
+            "schema_version": "0.1",
+            "source": "fixture",
+            "units": [
+                {
+                    "unit_id": "g2:p0:block0",
+                    "granularity": "block",
+                    "page": 0,
+                    "dtype": "text",
+                    "raw_text": source_text,
+                    "audit_text": source_text,
+                    "bbox": [0, 0, 100, 20],
+                }
+            ],
+        },
+    )
+    write_json(
+        repaired,
+        {
+            "schema_version": "0.1",
+            "source_inventory": str(inventory),
+            "output_blocks": [
+                {
+                    "output_id": "out:g2:p0:block0",
+                    "raw_text": output_text,
+                    "audit_text": output_text,
+                    "source_refs": ["g2:p0:block0"],
+                    "operation": "emit",
+                    "confidence": 1.0,
+                    "disposition": "emitted",
+                    "page": 0,
+                }
+            ],
+            "findings": [],
+            "not_implemented": [],
+        },
+    )
+    run(str(SCRIPTS / "build_manifest.py"), str(inventory), str(repaired), "-o", str(manifest))
+    run(str(SCRIPTS / "completeness_audit.py"), str(inventory), str(manifest), "-o", str(completeness))
+    report = read_json(completeness)
+    assert_true(not any(item.get("rule_id") == "G2" for item in report["content_loss"]), "G2 review band was escalated to content_loss")
+    assert_true(any(item.get("rule_id") == "G2" for item in report["needs_review"]), "G2 review band did not produce needs_review")
+
+
+def test_post_render_uses_output_anchors_only(tmp: Path) -> None:
+    report_path = tmp / "post-render-output-anchors" / "completeness_report.json"
+    rendered = tmp / "post-render-output-anchors" / "rendered.txt"
+    post = tmp / "post-render-output-anchors" / "post_render_audit.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        report_path,
+        {
+            "schema_version": "0.2",
+            "document_status": "review",
+            "audits": {
+                "G3_anchor_audit": {
+                    "required_source_anchors": ["3.3", "4.2"],
+                    "required_output_anchors": ["4.2"],
+                    "missing_required": ["3.3"],
+                }
+            },
+            "content_loss": [{"rule_id": "G3", "anchors": ["3.3"]}],
+            "needs_review": [],
+            "auto_fixed": [],
+        },
+    )
+    rendered.write_text("4.2 Services", encoding="utf-8")
+    run(str(SCRIPTS / "post_render_audit.py"), str(rendered), str(report_path), "-o", str(post))
+    result = read_json(post)
+    assert_true(not any("3.3" in item.get("anchors", []) for item in result["post_render_loss"]), "Post-render repeated an upstream missing source anchor")
+
+
+def test_source_pdf_audit_required_anchor_gate(tmp: Path) -> None:
+    inventory = tmp / "source-pdf-gate" / "source_inventory.json"
+    repaired = tmp / "source-pdf-gate" / "repaired_blocks.json"
+    manifest = tmp / "source-pdf-gate" / "repair_manifest.json"
+    source_audit = tmp / "source-pdf-gate" / "source_pdf_audit.json"
+    completeness = tmp / "source-pdf-gate" / "completeness_report.json"
+    inventory.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        inventory,
+        {
+            "schema_version": "0.1",
+            "source": "fixture",
+            "units": [
+                {
+                    "unit_id": "mineru:p0:block0",
+                    "granularity": "block",
+                    "page": 0,
+                    "dtype": "text",
+                    "raw_text": "4.1 Present section",
+                    "audit_text": "4.1 present section",
+                    "bbox": [0, 0, 100, 20],
+                }
+            ],
+        },
+    )
+    write_json(
+        repaired,
+        {
+            "schema_version": "0.1",
+            "source_inventory": str(inventory),
+            "output_blocks": [
+                {
+                    "output_id": "out:mineru:p0:block0",
+                    "raw_text": "4.1 Present section",
+                    "audit_text": "4.1 present section",
+                    "source_refs": ["mineru:p0:block0"],
+                    "operation": "emit",
+                    "confidence": 1.0,
+                    "disposition": "emitted",
+                    "page": 0,
+                }
+            ],
+            "findings": [],
+            "not_implemented": [],
+        },
+    )
+    write_json(source_audit, {"schema_version": "0.1", "anchors": ["4.1", "4.2"]})
+    run(str(SCRIPTS / "build_manifest.py"), str(inventory), str(repaired), "-o", str(manifest))
+    run(str(SCRIPTS / "completeness_audit.py"), str(inventory), str(manifest), "--source-pdf-audit", str(source_audit), "-o", str(completeness))
+    report = read_json(completeness)
+    assert_true(any(item.get("rule_id") == "G3P" and "4.2" in item.get("anchors", []) for item in report["content_loss"]), "Independent source PDF anchor loss was not gated")
+
+
+def test_render_html_preserves_tables(tmp: Path) -> None:
+    repaired = tmp / "table-html" / "repaired_blocks.json"
+    html = tmp / "table-html" / "repaired.html"
+    repaired.parent.mkdir(parents=True, exist_ok=True)
+    table = "<table><tr><td>A</td></tr></table>"
+    write_json(
+        repaired,
+        {
+            "schema_version": "0.1",
+            "output_blocks": [
+                {
+                    "output_id": "out:table",
+                    "raw_text": table,
+                    "audit_text": "a",
+                    "source_refs": ["fixture:p0:block0"],
+                    "operation": "emit",
+                    "confidence": 1.0,
+                    "disposition": "emitted",
+                    "page": 0,
+                }
+            ],
+        },
+    )
+    run(str(SCRIPTS / "render_html.py"), str(repaired), "-o", str(html))
+    rendered = html.read_text(encoding="utf-8-sig")
+    assert_true("<table><tr><td>A</td></tr></table>" in rendered, "Table HTML was not preserved")
+    assert_true("&lt;table" not in rendered, "Table HTML was escaped")
+
+
 def test_review_rules(tmp: Path) -> None:
     fixture = read_json(FIXTURES / "review-rules.json")
     result = run_chain(tmp / "review-rules", fixture["units"], "\n".join(u["raw_text"] for u in fixture["units"]))
@@ -159,12 +344,25 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="pdf-layout-repair-fixtures-") as tmp_name:
         tmp = Path(tmp_name)
-        for child in ("a1-positive", "a1-negative", "general-repair", "review-rules"):
+        for child in (
+            "a1-positive",
+            "a1-negative",
+            "general-repair",
+            "review-rules",
+            "negative-b1",
+            "negative-d1",
+            "negative-e1",
+        ):
             (tmp / child).mkdir(parents=True, exist_ok=True)
         test_a1_positive(tmp)
         test_a1_negative(tmp)
         test_missing_anchor(tmp)
         test_general_repairs(tmp)
+        test_general_repair_negatives(tmp)
+        test_g2_review_band(tmp)
+        test_post_render_uses_output_anchors_only(tmp)
+        test_source_pdf_audit_required_anchor_gate(tmp)
+        test_render_html_preserves_tables(tmp)
         test_review_rules(tmp)
         if args.keep:
             keep_path = Path(tempfile.gettempdir()) / "pdf-layout-repair-fixtures-last"

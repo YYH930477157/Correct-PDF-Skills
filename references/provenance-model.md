@@ -8,6 +8,8 @@
 
 Always keep both `raw_text` and `audit_text`. `raw_text` is never normalized in place. `audit_text` is produced by `normalize_for_audit()` and used for diff/search/audit only.
 
+The MVP inventory is MinerU-primary. Multi-engine fields are retained so later engines can attach evidence without changing schema, but PyMuPDF evidence currently enters the quality gate through `source_pdf_audit.json` and the G3P independent-anchor audit rather than full block-level dedupe.
+
 ## Source Unit
 
 ```json

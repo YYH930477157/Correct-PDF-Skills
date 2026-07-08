@@ -71,7 +71,10 @@ def main() -> int:
 
     run(str(SCRIPTS / "apply_repairs.py"), str(inventory), "-o", str(repaired))
     run(str(SCRIPTS / "build_manifest.py"), str(inventory), str(repaired), "-o", str(manifest))
-    run(str(SCRIPTS / "completeness_audit.py"), str(inventory), str(manifest), "-o", str(completeness))
+    completeness_args = [str(SCRIPTS / "completeness_audit.py"), str(inventory), str(manifest), "-o", str(completeness)]
+    if args.source_pdf:
+        completeness_args.extend(["--source-pdf-audit", str(source_audit)])
+    run(*completeness_args)
     run(str(SCRIPTS / "render_html.py"), str(repaired), "-o", str(html), "--title", args.title)
 
     pdf_generation = {"status": "skipped", "reason": "no_pdf_requested", "artifact": str(html)}

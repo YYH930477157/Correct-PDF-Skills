@@ -19,8 +19,9 @@ Pre-render gate:
 Post-render gate:
 
 - Missing `post_render_audit.json`: no final.
-- Missing required anchors in generated PDF: `post_render_loss`.
+- Missing required output anchors in generated PDF/HTML/text: `post_render_loss`.
 - Rendered status disagreement with completeness report: no final.
+- `render_status` shows whether the renderer itself passed, independent of an upstream parser/audit review status.
 
 ## Not Implemented
 

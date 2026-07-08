@@ -77,8 +77,10 @@ def main() -> int:
     rendered_anchors = {m.group(0).lower() for m in ANCHOR_RE.finditer(rendered_text)}
     expected = set()
     g3 = report.get("audits", {}).get("G3_anchor_audit", {})
-    expected.update(a.lower() for a in g3.get("missing_required", []))
-    expected.update(a.lower() for a in g3.get("required_source_anchors", []))
+    output_anchors = g3.get("required_output_anchors")
+    if output_anchors is None:
+        output_anchors = sorted(set(g3.get("required_source_anchors", [])) - set(g3.get("missing_required", [])))
+    expected.update(a.lower() for a in output_anchors)
 
     post_render_loss = []
     if not rendered_text.strip():
@@ -89,10 +91,12 @@ def main() -> int:
     clipping = pdf_visual_clipping(args.rendered_artifact)
     if clipping.get("finding_count", 0):
         post_render_loss.append({"rule_id": "I3", "reason": "rendered_content_outside_page_bounds", "finding_count": clipping["finding_count"]})
+    render_status = "review" if post_render_loss else "pass"
     status = "review" if post_render_loss or report.get("document_status") == "review" else report.get("document_status", "draft")
     result = {
         "schema_version": "0.2",
         "document_status": status,
+        "render_status": render_status,
         "rendered_artifact": str(args.rendered_artifact),
         "completeness_report": str(args.completeness_report),
         "rendered_anchor_count": len(rendered_anchors),

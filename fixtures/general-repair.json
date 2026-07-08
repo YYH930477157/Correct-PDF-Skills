@@ -70,5 +70,61 @@
     "joined_paragraph": "The system shall provide secure remote reading for each meter.",
     "bullet_text": "- communication status",
     "symbol_text": "Pressure <= 16 bar"
+  },
+  "negative": {
+    "b1": {
+      "description": "Do not join two independent paragraphs when the first one ends with terminal punctuation.",
+      "units": [
+        {
+          "unit_id": "neg:b1:p1",
+          "granularity": "block",
+          "page": 0,
+          "dtype": "text",
+          "raw_text": "The system is configured.",
+          "audit_text": "the system is configured.",
+          "bbox": [40, 100, 220, 114]
+        },
+        {
+          "unit_id": "neg:b1:p2",
+          "granularity": "block",
+          "page": 0,
+          "dtype": "text",
+          "raw_text": "reading is performed remotely.",
+          "audit_text": "reading is performed remotely.",
+          "bbox": [40, 118, 250, 132]
+        }
+      ],
+      "forbidden_text": "The system is configured. reading is performed remotely."
+    },
+    "d1": {
+      "description": "Do not rewrite a semantic hyphen inside normal text as a bullet.",
+      "units": [
+        {
+          "unit_id": "neg:d1:hyphen",
+          "granularity": "block",
+          "page": 0,
+          "dtype": "text",
+          "raw_text": "point-to-point communication",
+          "audit_text": "point-to-point communication",
+          "bbox": [40, 150, 220, 164]
+        }
+      ],
+      "expected_text": "point-to-point communication"
+    },
+    "e1": {
+      "description": "Do not replace a legal non-target character when it is not in an explicit corruption context.",
+      "units": [
+        {
+          "unit_id": "neg:e1:legal",
+          "granularity": "block",
+          "page": 0,
+          "dtype": "text",
+          "raw_text": "Symbol ŷ is listed as a literal glyph.",
+          "audit_text": "symbol ŷ is listed as a literal glyph.",
+          "bbox": [40, 180, 260, 194]
+        }
+      ],
+      "expected_text": "Symbol ŷ is listed as a literal glyph."
+    }
   }
 }

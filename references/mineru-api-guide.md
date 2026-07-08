@@ -20,15 +20,31 @@ Token rules:
 
 If document sensitivity is unknown, ask before upload.
 
-Generic API call:
+Two API modes are supported.
+
+Generic multipart mode for self-hosted MinerU-compatible services:
 
 ```bash
 set MINERU_TOKEN=...
-python scripts/call_mineru_api.py source.pdf --endpoint https://... --allow-upload -o mineru_response.json
+python scripts/call_mineru_api.py source.pdf --mode multipart --endpoint https://... --allow-upload -o mineru_response.json
 ```
+
+mineru.net cloud local-file mode:
+
+```bash
+set MINERU_TOKEN=...
+python scripts/call_mineru_api.py source.pdf --mode mineru-v4-local --allow-upload -o mineru_response.json
+```
+
+`mineru-v4-local` follows the official v4 batch upload pattern: request a signed upload URL, upload the PDF with PUT, then poll the batch extraction result.
 
 The wrapper supports:
 
+- `--mode multipart|mineru-v4-local`,
+- `--base-url` for the mineru.net-compatible host,
+- `--model-version`,
+- `--language`,
+- `--is-ocr`,
 - `--file-field` for multipart file field name,
 - `--param KEY=VALUE` for extra form fields,
 - `--header KEY=VALUE` for extra headers,

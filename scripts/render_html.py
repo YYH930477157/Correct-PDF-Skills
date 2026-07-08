@@ -12,10 +12,21 @@ from typing import Any
 
 
 SECTION_RE = re.compile(r"^\s*(\d+(?:\.\d+)*)\s+(.+)")
+TABLE_RE = re.compile(r"^\s*<table[\s>].*</table>\s*$", re.I | re.S)
+
+
+def safe_table_html(text: str) -> str:
+    if TABLE_RE.match(text):
+        return text
+    return ""
 
 
 def block_html(block: dict[str, Any]) -> str:
     text = block.get("raw_text", "")
+    if block.get("dtype") in {"table", "table_body"} or "<table" in text.lower():
+        table = safe_table_html(text)
+        if table:
+            return table
     escaped = html.escape(text)
     operation = block.get("operation", "emit")
     if operation == "TOC_three_column_repair":

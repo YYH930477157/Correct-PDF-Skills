@@ -36,8 +36,10 @@ G1 page coverage:
 
 G2 text amount:
 
-- Compare source inventory block text to repaired output text per page.
-- Coverage below threshold is `content_loss`.
+- Compare source inventory block text to repaired output text per page using token coverage.
+- Coverage below the hard floor is `content_loss`.
+- Coverage between hard floor and threshold is `needs_review`.
+- Character ratio is retained as supporting evidence, not the hard decision metric.
 - `source_pdf_audit.py` provides independent PyMuPDF text/image/vector evidence when the source PDF is available.
 - OCR, when added by the operator, is audit evidence only; it must not overwrite content.
 - `ocr_unavailable`, `ocr_low_confidence`, and `ocr_timeout` become `needs_review`.
@@ -47,6 +49,7 @@ G3 anchor audit:
 - `required`: section numbers, table numbers, figure numbers, appendix identifiers. Missing required anchors produce `content_loss`.
 - `candidate`: standard references, dates, numeric values, units, percentages, ranges. Missing candidate anchors produce `needs_review`.
 - `contextual`: random fixed-seed word shingles. Missing contextual anchors produce `needs_review`.
+- `G3P`: when independent PyMuPDF source audit is supplied, required anchors present in the source PDF but absent from repaired output produce `content_loss`.
 
 G4 figure/table audit:
 
@@ -61,7 +64,7 @@ G5 semantic sampling:
 
 ## Thresholds
 
-- `text_page`: coverage below `0.92` is `content_loss`.
+- `text_page`: token coverage below `0.92` is reviewed; below the hard floor is `content_loss`.
 - `table_page`: missing required table anchors is `content_loss`; text coverage is secondary.
 - `toc_page`: missing TOC structural entries is `content_loss`.
 - `scan_page`: source PDF audit reports text/image evidence; unavailable OCR means `needs_review` if text coverage is insufficient.

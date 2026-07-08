@@ -46,6 +46,13 @@ Use an already-built source inventory:
 python scripts\run_pipeline.py "source_inventory.json" --input-kind inventory -o out
 ```
 
+Customize foreign-language contamination terms:
+
+```powershell
+$env:PDF_LAYOUT_REPAIR_FOREIGN_TERMS = "le,les,des,etre,configuration"
+python scripts\run_pipeline.py "MinerU_output.json" -o out
+```
+
 ## Output Artifacts
 
 The pipeline writes:
@@ -84,8 +91,9 @@ Deterministic review detection:
 Completeness and render audits:
 
 - G1 page coverage.
-- G2 page text amount.
+- G2 page token coverage with a review band before hard `content_loss`.
 - G3 required and candidate anchors.
+- G3P independent PyMuPDF source PDF anchors when `--source-pdf` is used.
 - G4 figure/table/caption anchors.
 - I post-render anchor audit and PDF bbox clipping audit.
 
@@ -97,15 +105,27 @@ LLM semantic sampling:
 
 ## MinerU Remote API
 
-The generic wrapper is configurable and does not hardcode a private endpoint:
+Two remote modes are available. The default `multipart` mode is for self-hosted MinerU-compatible services:
 
 ```powershell
 $env:MINERU_TOKEN = "..."
 python scripts\call_mineru_api.py "source.pdf" --endpoint "https://..." --allow-upload -o mineru_response.json
 ```
 
+For mineru.net cloud local-file parsing, use the official v4 batch upload flow:
+
+```powershell
+$env:MINERU_TOKEN = "..."
+python scripts\call_mineru_api.py "source.pdf" --mode mineru-v4-local --allow-upload -o mineru_response.json
+```
+
 Useful options:
 
+- `--mode multipart|mineru-v4-local`
+- `--base-url https://mineru.net`
+- `--model-version vlm|pipeline`
+- `--language en`
+- `--is-ocr`
 - `--file-field FIELD`
 - `--param KEY=VALUE`
 - `--header KEY=VALUE`
@@ -138,6 +158,7 @@ Get-ChildItem -LiteralPath scripts -Filter *.py | ForEach-Object { python -m py_
 - `final`: no content loss, no post-render loss, no unresolved review findings.
 - `draft`: no detected loss, but review items remain.
 - `review`: content loss or post-render loss was detected.
+- `post_render_audit.json` also includes `render_status`; this isolates renderer loss from upstream parser loss.
 
 Manual review may downgrade noisy findings, but final output should be produced only after hard gates are rerun and pass.
 

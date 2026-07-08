@@ -11,6 +11,7 @@ python scripts/run_pipeline.py source.json -o out
 Outputs:
 
 - `repaired.html` is always created.
+- Table blocks that contain complete `<table>...</table>` HTML are preserved as table markup; unsafe or partial tags are escaped as text.
 - `repaired.pdf` is created only when a headless Chrome-compatible binary is available and `--no-pdf` is not set.
 - `post_render_audit.json` must be generated after HTML/PDF output.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,6 @@ BULLET_REPLACEMENTS = {
     "\u2022": "-",
 }
 SYMBOL_REPLACEMENTS = {
-    "\u0177": "<=",
     "\u2264": "<=",
     "\u2265": ">=",
 }
@@ -32,6 +32,19 @@ HEADER_FOOTER_RE = re.compile(r"\b(?:UNI/TS|UNI EN|ISO|Page\s+\d+|©|Copyright)\
 TERM_RE = re.compile(r"\b([a-z][a-z -]{3,30})\s+(?:is|means|refers to|defined as)\b", re.I)
 
 
+def load_foreign_terms() -> set[str]:
+    terms = set(ITALIAN_TERMS)
+    inline = os.environ.get("PDF_LAYOUT_REPAIR_FOREIGN_TERMS", "")
+    file_path = os.environ.get("PDF_LAYOUT_REPAIR_FOREIGN_TERMS_FILE", "")
+    if inline:
+        terms = {term.strip().lower() for term in re.split(r"[,;\n]", inline) if term.strip()}
+    if file_path:
+        path = Path(file_path)
+        if path.exists():
+            terms.update(term.strip().lower() for term in re.split(r"[,;\n]", path.read_text(encoding="utf-8-sig")) if term.strip())
+    return terms
+
+
 def cy(unit: dict[str, Any]) -> float:
     bbox = unit.get("bbox") or [0, 0, 0, 0]
     return (bbox[1] + bbox[3]) / 2
@@ -39,7 +52,8 @@ def cy(unit: dict[str, Any]) -> float:
 
 def is_left_isolated_section(unit: dict[str, Any]) -> bool:
     bbox = unit.get("bbox") or [999, 0, 999, 0]
-    return unit.get("granularity") == "block" and SECTION_RE.match(unit.get("raw_text", "").strip()) and bbox[0] < 120
+    page_width = float(unit.get("page_width") or 595)
+    return unit.get("granularity") == "block" and SECTION_RE.match(unit.get("raw_text", "").strip()) and bbox[0] < page_width * 0.2
 
 
 def same_baseline(a: dict[str, Any], b: dict[str, Any]) -> bool:
@@ -91,7 +105,8 @@ def starts_like_continuation(text: str) -> bool:
 
 def is_toc_number(unit: dict[str, Any]) -> bool:
     text = unit.get("raw_text", "").strip()
-    return unit.get("dtype") == "toc_number" or (TOC_NUMBER_RE.match(text) and (unit.get("bbox") or [999])[0] < 90)
+    page_width = float(unit.get("page_width") or 595)
+    return unit.get("dtype") == "toc_number" or (TOC_NUMBER_RE.match(text) and (unit.get("bbox") or [999])[0] < page_width * 0.16)
 
 
 def is_toc_title(unit: dict[str, Any]) -> bool:
@@ -101,7 +116,8 @@ def is_toc_title(unit: dict[str, Any]) -> bool:
 def is_toc_page(unit: dict[str, Any]) -> bool:
     text = unit.get("raw_text", "").strip()
     bbox = unit.get("bbox") or [0, 0, 0, 0]
-    return unit.get("dtype") == "toc_page" or (text.isdigit() and bbox[0] >= 450)
+    page_width = float(unit.get("page_width") or 595)
+    return unit.get("dtype") == "toc_page" or (text.isdigit() and bbox[0] >= page_width * 0.75)
 
 
 def normalize_bullets(text: str) -> str:
@@ -115,6 +131,9 @@ def repair_symbols(text: str) -> str:
     out = text
     for old, new in SYMBOL_REPLACEMENTS.items():
         out = out.replace(old, new)
+    out = re.sub(r"(?<=\d)\s*\u0177\s*(?=\d|\s*(?:bar|m3|m³|l/h|%|s|ms|V|Hz)\b)", " <= ", out, flags=re.I)
+    out = re.sub(r"\b(pressure|flow|temperature|value|limit|max|min)\s*\u0177\s*(?=\d)", r"\1 <= ", out, flags=re.I)
+    out = re.sub(r"\s{2,}", " ", out).strip()
     return out
 
 
@@ -136,8 +155,9 @@ def numbered_anchor(text: str, label: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def detect_review_items(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def detect_review_items(blocks: list[dict[str, Any]], foreign_terms: set[str] | None = None) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
+    foreign_terms = foreign_terms or load_foreign_terms()
     sections: list[tuple[tuple[int, ...], str]] = []
     tables: list[tuple[int, str]] = []
     figures: list[tuple[int, str]] = []
@@ -173,7 +193,7 @@ def detect_review_items(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif text.strip():
             short_text_run = []
 
-        if len(ITALIAN_TERMS.intersection(set(re.findall(r"[a-zà-ÿ]+", audit.lower())))) >= 2:
+        if len(foreign_terms.intersection(set(re.findall(r"[a-z\u00e0-\u00ff]+", audit.lower())))) >= 2:
             items.append(review("C3", refs, "possible_foreign_language_contamination", sample=text))
 
         if re.match(r"^\s*\d+\)", text) and bbox[1] >= 730:
@@ -268,7 +288,13 @@ def apply_repairs(units: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], li
             and other.get("page") == number.get("page")
             and same_baseline(number, other)
         ]
-        titles = [u for u in same_row if is_toc_title(u) or ((u.get("bbox") or [0])[0] > 90 and (u.get("bbox") or [0])[0] < 450 and not is_toc_page(u))]
+        page_width = float(number.get("page_width") or 595)
+        titles = [
+            u
+            for u in same_row
+            if is_toc_title(u)
+            or ((u.get("bbox") or [0])[0] > page_width * 0.16 and (u.get("bbox") or [0])[0] < page_width * 0.75 and not is_toc_page(u))
+        ]
         pages = [u for u in same_row if is_toc_page(u)]
         if titles and pages:
             title = sorted(titles, key=lambda u: (u.get("bbox") or [0])[0])[0]
