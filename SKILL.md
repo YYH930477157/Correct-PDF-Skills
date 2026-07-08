@@ -43,7 +43,7 @@ Post-render:
 
 Manual override may downgrade noise but cannot promote directly to `final`. To produce `final`, all hard gates must be rerun and pass.
 
-## MVP Scope
+## Implemented Scope
 
 Implemented in the first pass:
 
@@ -73,18 +73,18 @@ Everything else must be reported as `needs_review`, `suggest_patch`, or an expli
 
 ## Rule Classes
 
-| Class | Scope | MVP |
+| Class | Scope | Status |
 | --- | --- | --- |
-| A | Structural defects: section numbers, headings, title/body splits | A1 auto; A2/A3 review; A4/A5 suggest/review |
-| B | Paragraph joins and cross-page paragraph repair | B1 implemented; B2-B3 review/suggest |
-| C | Content contamination: footnotes, headers, foreign-language/cross-column pollution | C3 review; C1/C2/C4 review when detected |
-| D | Lists, bullets, tables, captions | D0/D1 auto; D3 review; D2/D4 review/suggest |
+| A | Structural defects: section numbers, headings, title/body splits | A1 auto; A2-A5 review |
+| B | Paragraph joins and cross-page paragraph repair | B1 auto; B2-B3 review |
+| C | Content contamination: footnotes, headers, foreign-language/cross-column pollution | C1-C4 review |
+| D | Lists, bullets, tables, captions | D0/D1 auto; D2-D4 review |
 | E | Encoding, symbols, units, formulas | E1 auto; E2/E3 review |
-| F | Sequence integrity for sections, tables, figures, terms | F1/F2 review; F3 review when detected |
+| F | Sequence integrity for sections, tables, figures, terms | F1-F3 review |
 | G | Completeness audit | G1-G4 implemented; G5 placeholder |
-| H | Provenance | MVP |
+| H | Provenance | Implemented |
 | I | Post-render audit | Anchor and PDF bbox clipping audit |
-| J | Privacy/copyright and remote API safety | MVP |
+| J | Privacy/copyright and remote API safety | Implemented |
 
 ## References
 

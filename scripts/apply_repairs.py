@@ -28,6 +28,8 @@ SYMBOL_REPLACEMENTS = {
 }
 ITALIAN_TERMS = {"il", "la", "lo", "gli", "dei", "delle", "contatore", "deve", "essere", "configurato", "funzioni"}
 KNOWN_UNITS = {"bar", "m3/h", "m³/h", "m3", "m³", "l/h", "%", "s", "ms", "v", "hz"}
+HEADER_FOOTER_RE = re.compile(r"\b(?:UNI/TS|UNI EN|ISO|Page\s+\d+|©|Copyright)\b", re.I)
+TERM_RE = re.compile(r"\b([a-z][a-z -]{3,30})\s+(?:is|means|refers to|defined as)\b", re.I)
 
 
 def cy(unit: dict[str, Any]) -> float:
@@ -139,10 +141,14 @@ def detect_review_items(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     sections: list[tuple[tuple[int, ...], str]] = []
     tables: list[tuple[int, str]] = []
     figures: list[tuple[int, str]] = []
+    title_run: list[str] = []
+    short_text_run: list[str] = []
+    seen_defined_terms: set[str] = set()
     for unit in sorted(blocks, key=reading_order):
         text = unit.get("raw_text", "")
         audit = unit.get("audit_text") or normalize_audit(text)
         refs = [unit["unit_id"]]
+        bbox = unit.get("bbox") or [0, 0, 0, 0]
 
         anchor = section_anchor(text)
         if anchor:
@@ -150,12 +156,40 @@ def detect_review_items(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
             rest = re.sub(r"^\s*\d+(?:\.\d+)*\s+", "", text).strip()
             if unit.get("dtype") in {"title", "heading"} and re.search(r"\b(?:shall|must|should|is|are|the following)\b", rest, re.I):
                 items.append(review("A3", refs, "heading_may_include_body_text", sample=text))
+            if unit.get("dtype") in {"title", "heading"} and text.rstrip().endswith("-"):
+                items.append(review("A4", refs, "heading_ends_with_hyphen_possible_truncation", sample=text))
+
+        if unit.get("dtype") in {"title", "heading"}:
+            title_run.append(unit["unit_id"])
+            if len(title_run) >= 2:
+                items.append(review("A5", title_run[-2:], "consecutive_headings_without_body_between"))
+        elif text.strip():
+            title_run = []
+
+        if unit.get("dtype") in {"text", "para", "paragraph", "para_blocks"} and len(text.split()) <= 2 and not is_sentence_terminal(text):
+            short_text_run.append(unit["unit_id"])
+            if len(short_text_run) >= 3:
+                items.append(review("B2", short_text_run[-3:], "over_fragmented_short_paragraph_blocks"))
+        elif text.strip():
+            short_text_run = []
 
         if len(ITALIAN_TERMS.intersection(set(re.findall(r"[a-zà-ÿ]+", audit.lower())))) >= 2:
             items.append(review("C3", refs, "possible_foreign_language_contamination", sample=text))
 
+        if re.match(r"^\s*\d+\)", text) and bbox[1] >= 730:
+            items.append(review("C1", refs, "possible_footnote_contamination", sample=text))
+
+        if HEADER_FOOTER_RE.search(text) and (bbox[1] <= 50 or bbox[1] >= 760):
+            items.append(review("C2", refs, "possible_header_footer_contamination", sample=text))
+
         if text.count("|") >= 3 and unit.get("dtype") not in {"table", "table_body"}:
             items.append(review("D3", refs, "table_like_text_in_paragraph_block", sample=text))
+
+        if unit.get("dtype") == "list" and not re.match(r"^\s*(?:[-*•\u2212]|\d+[.)]|[a-zA-Z][.)])\s+", text):
+            items.append(review("D2", refs, "list_block_missing_visible_bullet", sample=text))
+
+        if unit.get("dtype") == "caption" and re.search(r"\b(?:Table|Figure)\s+\d+\b", text, re.I) and bbox[1] >= 700:
+            items.append(review("D4", refs, "caption_near_page_edge_possible_displacement", sample=text))
 
         for number, unit_text in re.findall(r"\b(\d+(?:[.,]\d+)?)\s+([A-Za-zµ³/%]+)\b", text):
             if unit_text.lower() not in KNOWN_UNITS and not unit_text.lower().startswith("m3"):
@@ -171,6 +205,35 @@ def detect_review_items(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         figure_no = numbered_anchor(text, "Figure")
         if figure_no is not None:
             figures.append((figure_no, unit["unit_id"]))
+
+        definition = TERM_RE.search(text)
+        if definition:
+            seen_defined_terms.add(definition.group(1).strip().lower())
+        for term in ("gateway", "meter", "endpoint", "application software"):
+            if term in audit and term not in seen_defined_terms and "defined" in audit:
+                items.append(review("F3", refs, "term_used_before_clear_definition_order", term=term, sample=text))
+                seen_defined_terms.add(term)
+
+    ordered = sorted(blocks, key=reading_order)
+    for current, nxt in zip(ordered, ordered[1:]):
+        if current.get("page") is None or nxt.get("page") is None:
+            continue
+        if int(nxt.get("page", 0)) == int(current.get("page", 0)) + 1:
+            cb = current.get("bbox") or [0, 0, 0, 0]
+            nb = nxt.get("bbox") or [0, 0, 0, 0]
+            if cb[1] >= 730 and nb[1] <= 80 and not is_sentence_terminal(current.get("raw_text", "")) and starts_like_continuation(nxt.get("raw_text", "")):
+                items.append(review("B3", [current["unit_id"], nxt["unit_id"]], "possible_cross_page_paragraph_continuation"))
+
+    by_page: dict[int, list[dict[str, Any]]] = {}
+    for unit in blocks:
+        by_page.setdefault(int(unit.get("page", 0)), []).append(unit)
+    for page_units in by_page.values():
+        sorted_page = sorted(page_units, key=reading_order)
+        for left, right in zip(sorted_page, sorted_page[1:]):
+            lb = left.get("bbox") or [0, 0, 0, 0]
+            rb = right.get("bbox") or [0, 0, 0, 0]
+            if rb[0] - lb[2] > 80 and abs(cy(left) - cy(right)) <= 4 and left.get("dtype") == right.get("dtype") == "text":
+                items.append(review("C4", [left["unit_id"], right["unit_id"]], "possible_cross_column_semantic_pollution"))
 
     for prev, cur in zip(sections, sections[1:]):
         prev_num, prev_ref = prev
@@ -283,7 +346,7 @@ def apply_repairs(units: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], li
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Apply MVP PDF layout repairs.")
+    parser = argparse.ArgumentParser(description="Apply deterministic PDF layout repairs.")
     parser.add_argument("source_inventory", type=Path)
     parser.add_argument("-o", "--output", type=Path, default=Path("repaired_blocks.json"))
     args = parser.parse_args()

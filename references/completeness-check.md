@@ -51,7 +51,7 @@ G3 anchor audit:
 G4 figure/table audit:
 
 - Count table blocks, figure blocks, captions, embedded images, and vector/drawing evidence.
-- MVP uses table/figure/caption anchors and vector density as evidence, not a hard blocker by itself.
+- Uses table/figure/caption anchors and vector density as evidence, not a hard blocker by itself.
 
 G5 semantic sampling:
 
@@ -59,7 +59,7 @@ G5 semantic sampling:
 - AI returns review findings or suggested operations, never direct text edits.
 - Until an LLM API is configured, G5 outputs `needs_review` with `not_configured`.
 
-## MVP Thresholds
+## Thresholds
 
 - `text_page`: coverage below `0.92` is `content_loss`.
 - `table_page`: missing required table anchors is `content_loss`; text coverage is secondary.

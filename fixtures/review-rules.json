@@ -81,7 +81,142 @@
       "raw_text": "Table 3 - Messages",
       "audit_text": "table 3 - messages",
       "bbox": [40, 210, 220, 226]
+    },
+    {
+      "unit_id": "r:a4-hyphen",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "title",
+      "raw_text": "4.5 Communica-",
+      "audit_text": "4.5 communica-",
+      "bbox": [40, 100, 180, 116]
+    },
+    {
+      "unit_id": "r:a5-heading-1",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "title",
+      "raw_text": "5 Requirements",
+      "audit_text": "5 requirements",
+      "bbox": [40, 140, 180, 156]
+    },
+    {
+      "unit_id": "r:a5-heading-2",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "title",
+      "raw_text": "5.1 Functional requirements",
+      "audit_text": "5.1 functional requirements",
+      "bbox": [40, 160, 260, 176]
+    },
+    {
+      "unit_id": "r:b2-short-1",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "text",
+      "raw_text": "The",
+      "audit_text": "the",
+      "bbox": [40, 210, 65, 224]
+    },
+    {
+      "unit_id": "r:b2-short-2",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "text",
+      "raw_text": "remote",
+      "audit_text": "remote",
+      "bbox": [40, 226, 88, 240]
+    },
+    {
+      "unit_id": "r:b2-short-3",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "text",
+      "raw_text": "system",
+      "audit_text": "system",
+      "bbox": [40, 242, 92, 256]
+    },
+    {
+      "unit_id": "r:b3-cross-page-1",
+      "granularity": "block",
+      "page": 5,
+      "dtype": "text",
+      "raw_text": "The data transmission shall support",
+      "audit_text": "the data transmission shall support",
+      "bbox": [40, 760, 310, 774]
+    },
+    {
+      "unit_id": "r:b3-cross-page-2",
+      "granularity": "block",
+      "page": 6,
+      "dtype": "text",
+      "raw_text": "multiple retries after timeout.",
+      "audit_text": "multiple retries after timeout.",
+      "bbox": [40, 40, 260, 54]
+    },
+    {
+      "unit_id": "r:c1-footnote",
+      "granularity": "block",
+      "page": 6,
+      "dtype": "text",
+      "raw_text": "1) This note belongs to the page footer and not the paragraph.",
+      "audit_text": "1) this note belongs to the page footer and not the paragraph.",
+      "bbox": [40, 782, 420, 796]
+    },
+    {
+      "unit_id": "r:c2-header",
+      "granularity": "block",
+      "page": 7,
+      "dtype": "text",
+      "raw_text": "UNI/TS 12007:2026",
+      "audit_text": "uni/ts 12007:2026",
+      "bbox": [220, 20, 360, 34]
+    },
+    {
+      "unit_id": "r:c4-left",
+      "granularity": "block",
+      "page": 7,
+      "dtype": "text",
+      "raw_text": "The meter records consumption",
+      "audit_text": "the meter records consumption",
+      "bbox": [40, 120, 230, 134]
+    },
+    {
+      "unit_id": "r:c4-right",
+      "granularity": "block",
+      "page": 7,
+      "dtype": "text",
+      "raw_text": "Alarm code A12 is transmitted",
+      "audit_text": "alarm code a12 is transmitted",
+      "bbox": [330, 122, 520, 136]
+    },
+    {
+      "unit_id": "r:d2-missing-bullet",
+      "granularity": "block",
+      "page": 7,
+      "dtype": "list",
+      "raw_text": "communication status",
+      "audit_text": "communication status",
+      "bbox": [70, 180, 260, 194]
+    },
+    {
+      "unit_id": "r:d4-caption",
+      "granularity": "block",
+      "page": 7,
+      "dtype": "caption",
+      "raw_text": "Figure 2 - Architecture",
+      "audit_text": "figure 2 - architecture",
+      "bbox": [40, 720, 240, 734]
+    },
+    {
+      "unit_id": "r:f3-term",
+      "granularity": "block",
+      "page": 7,
+      "dtype": "text",
+      "raw_text": "The gateway sends information before the gateway is defined.",
+      "audit_text": "the gateway sends information before the gateway is defined.",
+      "bbox": [40, 760, 480, 774]
     }
   ],
-  "expected_review_rules": ["A2", "A3", "C3", "D3", "E2", "E3", "F1", "F2"]
+  "expected_review_rules": ["A2", "A3", "A4", "A5", "B2", "B3", "C1", "C2", "C3", "C4", "D2", "D3", "D4", "E2", "E3", "F1", "F2", "F3"]
 }
