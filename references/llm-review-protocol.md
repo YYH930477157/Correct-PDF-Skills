@@ -30,4 +30,4 @@ Suggested operation shape:
 }
 ```
 
-When no API is configured, G5 must output `needs_review` with `not_configured`.
+When no API is configured, G5 falls back to local deterministic semantic sampling. Remote LLM review is optional and must never be the only completeness signal.

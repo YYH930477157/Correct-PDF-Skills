@@ -22,6 +22,8 @@ def safe_table_html(text: str) -> str:
 
 
 def block_html(block: dict[str, Any]) -> str:
+    if block.get("disposition") == "discarded":
+        return ""
     text = block.get("raw_text", "")
     if block.get("dtype") in {"table", "table_body"} or "<table" in text.lower():
         table = safe_table_html(text)

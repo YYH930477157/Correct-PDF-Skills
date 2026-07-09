@@ -37,6 +37,15 @@ python scripts/call_mineru_api.py source.pdf --mode mineru-v4-local --allow-uplo
 ```
 
 `mineru-v4-local` follows the official v4 batch upload pattern: request a signed upload URL, upload the PDF with PUT, then poll the batch extraction result.
+When `--extract-dir DIR` is supplied, the wrapper downloads completed `full_zip_url` results, extracts them, and records discovered `layout.json` paths in `mineru_request_metadata.json`.
+
+Example:
+
+```bash
+set MINERU_TOKEN=...
+python scripts/call_mineru_api.py source.pdf --mode mineru-v4-local --allow-upload -o mineru_response.json --extract-dir mineru_zip
+python scripts/run_pipeline.py mineru_zip/zip_1/layout.json -o out --source-pdf source.pdf
+```
 
 The wrapper supports:
 
@@ -49,5 +58,6 @@ The wrapper supports:
 - `--param KEY=VALUE` for extra form fields,
 - `--header KEY=VALUE` for extra headers,
 - `--token-env` when the token environment variable is not `MINERU_TOKEN`.
+- `--extract-dir DIR` for downloading and extracting cloud result ZIPs.
 
 It never writes the token to output artifacts.

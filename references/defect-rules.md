@@ -35,7 +35,7 @@ No negative fixture means no `auto_fix`.
 | G2 text amount | high | audit | Page token coverage below hard floor is content loss; review band becomes needs_review. |
 | G3 anchors basic | high | audit | Required anchor missing is content loss. Candidate/contextual missing is review. G3P adds independent source-PDF required-anchor loss when available. |
 | G4 figure/table basic | high | audit | Captions and table/figure blocks are audited. Vector density is supporting evidence. |
-| G5 semantic sampling | high | needs_review | Placeholder until an LLM API is configured; never invents content. |
+| G5 semantic sampling | high | audit | Local deterministic sampling runs by default; failures become needs_review. Optional LLM review may add findings but never invent content. |
 
 ## AI Patch Protocol
 

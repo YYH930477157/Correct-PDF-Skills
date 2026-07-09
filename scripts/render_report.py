@@ -27,6 +27,13 @@ def main() -> int:
     ]
     for item in comp.get("content_loss", []):
         lines.append(f"- `{item.get('rule_id')}` {item.get('reason')}: {item}")
+        locations = item.get("locations", {})
+        if isinstance(locations, dict):
+            for anchor, hits in locations.items():
+                if not hits:
+                    continue
+                hit = hits[0]
+                lines.append(f"  - `{anchor}` source page {hit.get('page')}: {hit.get('snippet', '')}")
     if not comp.get("content_loss"):
         lines.append("- none")
     lines.extend(["", "## Needs Review", ""])

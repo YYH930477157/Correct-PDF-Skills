@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import time
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,36 @@ def api_json(response: Any) -> dict[str, Any]:
 def require_ok(response: Any, payload: dict[str, Any], label: str) -> None:
     if not response.ok or payload.get("code", 0) not in (0, "0"):
         raise SystemExit(f"{label} failed with HTTP {response.status_code}: {payload.get('msg') or payload}")
+
+
+def extract_zip_urls(payload: dict[str, Any]) -> list[str]:
+    results = payload.get("data", {}).get("extract_result", [])
+    urls: list[str] = []
+    for item in results:
+        if not isinstance(item, dict) or item.get("state") != "done":
+            continue
+        url = item.get("full_zip_url") or item.get("zip_url")
+        if isinstance(url, str) and url.strip():
+            urls.append(url.strip())
+    return urls
+
+
+def download_and_extract_zips(urls: list[str], extract_dir: Path, requests: Any, timeout: int) -> list[dict[str, Any]]:
+    extract_dir.mkdir(parents=True, exist_ok=True)
+    extracted: list[dict[str, Any]] = []
+    for index, url in enumerate(urls, start=1):
+        zip_path = extract_dir / f"mineru_result_{index}.zip"
+        response = requests.get(url, timeout=timeout)
+        if not response.ok:
+            raise SystemExit(f"MinerU result ZIP download failed with HTTP {response.status_code}: {url}")
+        zip_path.write_bytes(response.content)
+        target = extract_dir / f"zip_{index}"
+        target.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(zip_path) as archive:
+            archive.extractall(target)
+        layout_jsons = sorted(str(path) for path in target.rglob("layout.json"))
+        extracted.append({"url": url, "zip": str(zip_path), "dir": str(target), "layout_json": layout_jsons[0] if layout_jsons else None})
+    return extracted
 
 
 def mineru_v4_local_batch(args: argparse.Namespace, headers: dict[str, str], requests: Any, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -121,6 +152,7 @@ def main() -> int:
     parser.add_argument("--data-id", default="")
     parser.add_argument("--poll-interval", type=int, default=10)
     parser.add_argument("--max-polls", type=int, default=60)
+    parser.add_argument("--extract-dir", type=Path, help="Download and extract completed MinerU result ZIPs into this directory.")
     parser.add_argument("--param", action="append", default=[], help="Extra multipart field as KEY=VALUE.")
     parser.add_argument("--header", action="append", default=[], help="Extra HTTP header as KEY=VALUE.")
     parser.add_argument("--timeout", type=int, default=300)
@@ -165,6 +197,10 @@ def main() -> int:
         headers.setdefault("Content-Type", "application/json")
         payload = mineru_v4_local_batch(args, headers, requests, metadata)
         metadata.update({"status": "completed" if metadata.get("status") != "timeout" else "timeout"})
+        zip_urls = extract_zip_urls(payload)
+        metadata["result_zip_urls"] = zip_urls
+        if args.extract_dir and zip_urls:
+            metadata["extracted_results"] = download_and_extract_zips(zip_urls, args.extract_dir, requests, args.timeout)
         write_json(args.metadata_output, metadata)
         write_json(args.output, payload)
         print(args.output)

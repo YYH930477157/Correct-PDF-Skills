@@ -15,8 +15,8 @@
       "granularity": "block",
       "page": 3,
       "dtype": "text",
-      "raw_text": "Il contatore deve essere configurato before commissioning.",
-      "audit_text": "il contatore deve essere configurato before commissioning.",
+      "raw_text": "The remote meter shall use contatore configurato before commissioning.",
+      "audit_text": "the remote meter shall use contatore configurato before commissioning.",
       "bbox": [40, 140, 420, 156]
     },
     {
@@ -159,9 +159,9 @@
       "granularity": "block",
       "page": 6,
       "dtype": "text",
-      "raw_text": "1) This note belongs to the page footer and not the paragraph.",
-      "audit_text": "1) this note belongs to the page footer and not the paragraph.",
-      "bbox": [40, 782, 420, 796]
+      "raw_text": "The service description was merged with the footer note. 1) This note belongs to the page footer and not the paragraph.",
+      "audit_text": "the service description was merged with the footer note. 1) this note belongs to the page footer and not the paragraph.",
+      "bbox": [40, 430, 520, 456]
     },
     {
       "unit_id": "r:c2-header",

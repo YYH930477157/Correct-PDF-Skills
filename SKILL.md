@@ -41,7 +41,7 @@ Post-render:
 - Missing four-piece audit set: no final.
 - Status mismatch between reports: no final.
 
-Manual override may downgrade noise but cannot promote directly to `final`. To produce `final`, all hard gates must be rerun and pass.
+Audited review decisions may resolve matched `needs_review` findings but cannot override `content_loss` or `post_render_loss`. To produce `final`, all hard gates must be rerun and pass.
 
 ## Implemented Scope
 
@@ -63,8 +63,9 @@ Implemented in the first pass:
 - G1 page coverage.
 - G2 page text amount audit.
 - G3 required/candidate anchor audit; G3P independent source-PDF anchor audit when source PDF is supplied.
+- G3R optional source-PDF anchor recovery from PyMuPDF snippets; recovered content requires review unless resolved by audited review decisions.
 - G4 figure/table/caption audit.
-- G5 AI semantic sampling placeholder; API intentionally blank.
+- G5 local deterministic semantic sampling; remote LLM API intentionally optional/blank.
 - H provenance, raw/audit text separation, bbox space fields.
 - I post-render anchor audit for PDF/HTML/text and PDF bbox clipping audit.
 - J privacy/token/logging constraints.
@@ -81,7 +82,7 @@ Everything else must be reported as `needs_review`, `suggest_patch`, or an expli
 | D | Lists, bullets, tables, captions | D0/D1 auto; D2-D4 review |
 | E | Encoding, symbols, units, formulas | E1 auto; E2/E3 review |
 | F | Sequence integrity for sections, tables, figures, terms | F1-F3 review |
-| G | Completeness audit | G1-G4 implemented; G5 placeholder |
+| G | Completeness audit | G1-G5 implemented; G5 uses local deterministic sampling by default |
 | H | Provenance | Implemented |
 | I | Post-render audit | Anchor and PDF bbox clipping audit |
 | J | Privacy/copyright and remote API safety | Implemented |

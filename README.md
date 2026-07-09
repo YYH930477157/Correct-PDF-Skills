@@ -34,6 +34,15 @@ Run with the original PDF as independent audit evidence:
 python scripts\run_pipeline.py "MinerU_output.json" -o out --source-pdf "source.pdf" --title "Repaired PDF"
 ```
 
+Recover missing required anchors from independent source-PDF evidence:
+
+```powershell
+python scripts\run_pipeline.py "MinerU_output.json" -o out --source-pdf "source.pdf" --recover-source-pdf-anchors
+```
+
+Recovery is conservative: recovered snippets are emitted with provenance and force `G3R needs_review`. They remove hard `G3P content_loss` only when the source PDF audit provides page/snippet evidence.
+
+
 Generate HTML only:
 
 ```powershell
@@ -67,6 +76,7 @@ The pipeline writes:
 - `repaired.pdf`: optional, if a headless Chrome-compatible browser is available.
 - `pdf_preflight.json`: optional source PDF page profile when `--source-pdf` is used.
 - `source_pdf_audit.json`: optional independent PyMuPDF source evidence when `--source-pdf` is used.
+- `source_inventory_recovered.json`: optional inventory augmented from source PDF snippets when `--recover-source-pdf-anchors` is used.
 - `pipeline_summary.json`: paths and high-level execution status.
 
 ## Rule Coverage
@@ -87,20 +97,23 @@ Deterministic review detection:
 - D2-D4 list/table/caption risks.
 - E2-E3 unit/formula/encoding risks.
 - F1-F3 sequence and term-order risks.
+- F2 table/figure gaps are checked against independent source-PDF evidence when `--source-pdf` is supplied. If the missing intermediate table/figure is not found in the source PDF either, the gap is recorded under `audits.sequence_gap_suppressed` instead of remaining a review item.
 
 Completeness and render audits:
 
 - G1 page coverage.
 - G2 page token coverage with a review band before hard `content_loss`.
 - G3 required and candidate anchors.
+- G3 candidate anchors filter short standard-prefix noise such as `UNI 5`; required anchors and independent source-PDF anchors are not downgraded by this filter.
 - G3P independent PyMuPDF source PDF anchors when `--source-pdf` is used.
+- G3R source-PDF snippet recovery; recovered snippets require review unless resolved by an audited review-decision file.
 - G4 figure/table/caption anchors.
 - I post-render anchor audit and PDF bbox clipping audit.
 
-LLM semantic sampling:
+Semantic sampling:
 
-- G5 is intentionally left unconfigured.
-- When no LLM API is configured, G5 emits `needs_review`.
+- G5 runs local deterministic semantic sampling by default.
+- Remote LLM review is optional and must be explicitly configured and approved.
 - See `references/llm-review-protocol.md` before connecting any model.
 
 ## MinerU Remote API
@@ -117,6 +130,14 @@ For mineru.net cloud local-file parsing, use the official v4 batch upload flow:
 ```powershell
 $env:MINERU_TOKEN = "..."
 python scripts\call_mineru_api.py "source.pdf" --mode mineru-v4-local --allow-upload -o mineru_response.json
+```
+
+Download and extract MinerU cloud ZIP output in the same command:
+
+```powershell
+$env:MINERU_TOKEN = "..."
+python scripts\call_mineru_api.py "source.pdf" --mode mineru-v4-local --allow-upload -o mineru_response.json --extract-dir mineru_zip
+python scripts\run_pipeline.py "mineru_zip\zip_1\layout.json" -o out --source-pdf "source.pdf"
 ```
 
 Useful options:
@@ -141,6 +162,15 @@ Run fixture smoke tests:
 python scripts\run_fixture_smoke.py
 ```
 
+Validate the regression case library:
+
+```powershell
+python scripts\run_regression_cases.py
+python scripts\run_regression_cases.py --run-smoke
+```
+
+The case library lives at `fixtures/regression-cases.json`. Each case records the defect class, the real failure mode it protects against, the expected behavior, and the smoke test that covers it.
+
 Validate skill structure:
 
 ```powershell
@@ -160,7 +190,7 @@ Get-ChildItem -LiteralPath scripts -Filter *.py | ForEach-Object { python -m py_
 - `review`: content loss or post-render loss was detected.
 - `post_render_audit.json` also includes `render_status`; this isolates renderer loss from upstream parser loss.
 
-Manual review may downgrade noisy findings, but final output should be produced only after hard gates are rerun and pass.
+Manual review may resolve noisy findings through an audited `review_decisions.json`, but final output should be produced only after hard gates are rerun and pass.
 
 ## Privacy
 

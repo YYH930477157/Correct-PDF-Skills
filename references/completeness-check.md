@@ -48,19 +48,24 @@ G3 anchor audit:
 
 - `required`: section numbers, table numbers, figure numbers, appendix identifiers. Missing required anchors produce `content_loss`.
 - `candidate`: standard references, dates, numeric values, units, percentages, ranges. Missing candidate anchors produce `needs_review`.
+- Candidate anchors filter short standard-prefix noise such as `UNI 5`, `EN 4`, or `ISO 9`. These are often line fragments or index artifacts, not meaningful completeness probes.
 - `contextual`: random fixed-seed word shingles. Missing contextual anchors produce `needs_review`.
 - `G3P`: when independent PyMuPDF source audit is supplied, required anchors present in the source PDF but absent from repaired output produce `content_loss`.
+- Anchor comparisons must canonicalize whitespace and case before set comparison. Examples: `Table\n9`, `Table  9`, and `table 9` are the same anchor.
+- Before emitting `content_loss`, re-check the canonical missing anchor against the repaired output audit text. This prevents parser/list-shape differences from becoming false loss reports.
+- G3P findings should include source-page location evidence when available: anchor, page index, and a short source snippet. Missing content must be recoverable by a human reviewer without re-hunting through the whole PDF.
 
 G4 figure/table audit:
 
 - Count table blocks, figure blocks, captions, embedded images, and vector/drawing evidence.
 - Uses table/figure/caption anchors and vector density as evidence, not a hard blocker by itself.
+- Manifest F2 table/figure sequence gaps are cross-checked with independent source-PDF anchors when available. If every missing intermediate table/figure is absent from the source PDF audit, the gap is retained under `audits.sequence_gap_suppressed` and not emitted as `needs_review`; if any missing intermediate anchor exists in the source PDF, the F2 review remains.
 
 G5 semantic sampling:
 
-- Fixed-seed AI sampling checks whether source paragraphs are represented in output.
-- AI returns review findings or suggested operations, never direct text edits.
-- Until an LLM API is configured, G5 outputs `needs_review` with `not_configured`.
+- Local deterministic sampling checks whether fixed source block samples are represented in output using normalized token coverage.
+- Samples below the coverage floor emit `needs_review` with source page and sample metadata.
+- Remote LLM review is optional and may add review findings or suggested operations, never direct text edits.
 
 ## Thresholds
 

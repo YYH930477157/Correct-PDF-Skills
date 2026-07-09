@@ -1,0 +1,105 @@
+{
+  "schema_version": "0.1",
+  "cases": [
+    {
+      "id": "g3p-whitespace-anchor-normalization",
+      "defect_class": "G3P",
+      "source": "Source PDF audit emits anchors with parser-shaped whitespace such as Table\\n9, Figure  1, and Appendix  A.",
+      "expected": {
+        "status": "no_content_loss",
+        "reason": "Whitespace and case differences must be canonicalized before anchor comparison."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_source_pdf_anchor_whitespace_normalization"
+    },
+    {
+      "id": "g3p-independent-source-anchor-loss",
+      "defect_class": "G3P",
+      "source": "PyMuPDF source audit finds a required anchor that repaired output does not contain.",
+      "expected": {
+        "status": "content_loss",
+        "reason": "Independent source anchors missing from repaired output must gate final delivery."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_source_pdf_audit_required_anchor_gate"
+    },
+    {
+      "id": "g3p-source-location-evidence",
+      "defect_class": "G3P",
+      "source": "A missing source-PDF anchor must include page and snippet evidence for human recovery.",
+      "expected": {
+        "status": "location_reported",
+        "required_fields": ["page", "snippet"]
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_source_pdf_audit_anchor_locations"
+    },
+    {
+      "id": "g3r-source-pdf-anchor-recovery",
+      "defect_class": "G3R",
+      "source": "A required anchor is present in PyMuPDF source evidence but absent from MinerU inventory.",
+      "expected": {
+        "status": "recovered_needs_review",
+        "reason": "Recovered source-PDF snippets should remove hard G3P loss while forcing review instead of final."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_source_pdf_anchor_recovery_downgrades_loss_to_review"
+    },
+    {
+      "id": "mineru-v4-full-zip-url",
+      "defect_class": "J",
+      "source": "MinerU cloud v4 returns full_zip_url inside data.extract_result instead of inline pdf_info.",
+      "expected": {
+        "status": "zip_url_detected",
+        "reason": "The API wrapper must expose ZIP URLs and optionally extract layout.json for pipeline input."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_mineru_v4_zip_url_extraction"
+    },
+    {
+      "id": "post-render-does-not-repeat-upstream-anchor-loss",
+      "defect_class": "I",
+      "source": "An anchor missing before rendering should not be reported again as renderer loss.",
+      "expected": {
+        "status": "no_duplicate_post_render_loss",
+        "reason": "Post-render audit validates anchors that reached repaired output, not all source anchors."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_post_render_uses_output_anchors_only"
+    },
+    {
+      "id": "table-html-preserved",
+      "defect_class": "D3",
+      "source": "MinerU table HTML appears in a repaired block.",
+      "expected": {
+        "status": "html_preserved",
+        "reason": "Table markup must render as a table rather than escaped paragraph text."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_render_html_preserves_tables"
+    },
+    {
+      "id": "auto-fix-negative-fixtures",
+      "defect_class": "A-F",
+      "source": "Auto-fix rules B1, D1, and E1 must not fire on safe negative examples.",
+      "expected": {
+        "status": "no_false_auto_fix",
+        "reason": "Rules without negative safety coverage can silently rewrite valid content."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_general_repair_negatives"
+    },
+    {
+      "id": "review-noise-negative-boundaries",
+      "defect_class": "C3/E2/C2/A5",
+      "source": "Dominant Italian text, date/month text, body standard references, and parent-child headings should not create noisy review findings.",
+      "expected": {
+        "status": "no_false_review",
+        "reason": "Review rules should identify risky parser defects, not normal standards-document structure."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_noisy_review_rule_negatives"
+    },
+    {
+      "id": "header-footer-discard-and-unit-noise",
+      "defect_class": "C2/E2",
+      "source": "MinerU discarded header/footer blocks and common date/time/TOC number-word pairs should not pollute review output.",
+      "expected": {
+        "status": "discard_or_ignore_noise",
+        "reason": "Safe header/footer blocks are provenance-discarded; E2 only reports genuinely suspicious units."
+      },
+      "covered_by": "scripts/run_fixture_smoke.py::test_header_footer_discard_and_unit_noise"
+    }
+  ]
+}
