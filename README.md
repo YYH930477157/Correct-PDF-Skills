@@ -40,7 +40,7 @@ Recover missing required anchors from independent source-PDF evidence:
 python scripts\run_pipeline.py "MinerU_output.json" -o out --source-pdf "source.pdf" --recover-source-pdf-anchors
 ```
 
-Recovery is conservative: recovered snippets are emitted with provenance and force `G3R needs_review`. They remove hard `G3P content_loss` only when the source PDF audit provides page/snippet evidence.
+Recovery is evidence-first: snippet-only evidence is never emitted. Only complete bbox-backed structural lines that pass heading/caption checks may enter the recovered inventory, and every emitted recovery forces `G3R needs_review`.
 
 
 Generate HTML only:
@@ -106,7 +106,7 @@ Completeness and render audits:
 - G3 required and candidate anchors.
 - G3 candidate anchors filter short standard-prefix noise such as `UNI 5`; required anchors and independent source-PDF anchors are not downgraded by this filter.
 - G3P independent PyMuPDF source PDF anchors when `--source-pdf` is used.
-- G3R source-PDF snippet recovery; recovered snippets require review unless resolved by an audited review-decision file.
+- G3R source-PDF structural-line recovery; unsafe snippets remain evidence candidates, and emitted bbox-backed lines require exact audited review.
 - G4 figure/table/caption anchors.
 - I post-render anchor audit and PDF bbox clipping audit.
 
@@ -198,3 +198,14 @@ Manual review may resolve noisy findings through an audited `review_decisions.js
 - Prefer local parsing/audit for sensitive documents.
 - Do not log full document text or API tokens.
 - Treat LLM output as suggestions only; never allow it to invent missing source content.
+
+## Fail-Closed Audit Contract
+
+- `G1P` compares independent source-PDF pages with inventory pages. A source page with text, image, or vector evidence cannot disappear silently.
+- `G4M` reviews significant source-PDF images or drawings that have no emitted media unit. Small decorative vectors are excluded by area thresholds.
+- G2 token coverage is never suppressed solely because source and output character counts are similar.
+- G5 compares each sampled source block only with output blocks that cite its `source_refs`. A non-empty document with no eligible samples is reviewable, not an automatic pass.
+- Source-PDF recovery is evidence-first. Snippet-only, watermarked, truncated, or non-heading section evidence remains in `source_pdf_recovery_candidates`; it is not emitted into repaired content.
+- A recoverable section requires a complete bbox-backed line plus heading-like font evidence. Table and figure recovery also requires a complete bbox-backed caption line.
+- Review decisions require `reviewed_at`, an exact `review_item_id`, exact refs, and the SHA-256 values reported in `audits.review_decisions.artifact_context`. Stale or partial decisions are rejected.
+- When PDF output is requested, unavailable PDF rendering is a delivery failure and `run_pipeline.py` exits non-zero. `pipeline_summary.json.status` records document, render, and delivery status separately.

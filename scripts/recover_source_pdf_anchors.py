@@ -125,6 +125,80 @@ def credible_recovery_snippet(snippet: str, anchor: str, kind: str) -> bool:
     return True
 
 
+def safe_structural_line(hit: dict[str, Any], anchor: str, kind: str) -> str | None:
+    line_text = re.sub(r"\s+", " ", str(hit.get("line_text", ""))).strip()
+    bbox = hit.get("bbox")
+    if not line_text or not isinstance(bbox, list) or len(bbox) != 4:
+        return None
+    trimmed = trim_to_anchor(line_text, anchor)
+    if not credible_recovery_snippet(trimmed, anchor, kind):
+        return None
+    if re.search(r"machine translated by google|translated by google", trimmed, re.I):
+        return None
+    if kind == "section":
+        if not hit.get("heading_like", False):
+            return None
+        after = trimmed[len(anchor) :].strip()
+        if len(after.split()) > 18 or re.search(r"[.!?;:]", after):
+            return None
+    if kind in {"table", "figure"} and len(trimmed.split()) > 24:
+        return None
+    return trimmed
+
+
+def recover_inventory(inventory: dict[str, Any], source_pdf_audit: dict[str, Any]) -> dict[str, Any]:
+    result = dict(inventory)
+    units = list(inventory.get("units", []))
+    inventory_text = "\n".join(unit.get("audit_text") or unit.get("raw_text") or "" for unit in units)
+    inventory_anchors = anchors(inventory_text)
+    source_anchors = set()
+    for value in source_pdf_audit.get("anchors", []):
+        source_anchors.update(anchors(str(value)))
+    missing = sorted(source_anchors - inventory_anchors)
+    locations = source_pdf_audit.get("anchor_locations", {})
+    recovered = []
+    candidates = []
+    seen_lines: set[tuple[int, str]] = set()
+    for anchor in missing:
+        hits = locations.get(anchor) if isinstance(locations, dict) else None
+        if not hits:
+            continue
+        kind = recovery_kind(anchor)
+        selected_hit = None
+        selected_text = None
+        for hit in hits:
+            line = safe_structural_line(hit, anchor, kind)
+            if line:
+                selected_hit = hit
+                selected_text = line
+                break
+        if selected_hit is None or selected_text is None:
+            candidates.append({"anchor": anchor, "kind": kind, "locations": hits[:5], "reason": "no_complete_bbox_backed_structural_line"})
+            continue
+        page = int(selected_hit.get("page", 0))
+        key = (page, selected_text.lower())
+        if key in seen_lines:
+            continue
+        seen_lines.add(key)
+        unit_id = f"source-pdf-recovery:p{page}:{slug(anchor)}"
+        unit = {
+            "unit_id": unit_id,
+            "granularity": "block",
+            "page": page,
+            "dtype": recovery_dtype(kind),
+            "raw_text": selected_text,
+            "audit_text": selected_text.lower(),
+            "bbox": [float(value) for value in selected_hit["bbox"]],
+            "recovery": {"rule_id": "G3R", "anchor": anchor, "kind": kind, "source": "source_pdf_audit_line", "requires_review": True},
+        }
+        units.append(unit)
+        recovered.append({"anchor": anchor, "unit_id": unit_id, "page": page, "line_text": selected_text, "bbox": unit["bbox"]})
+    result["units"] = units
+    result["source_pdf_recovered_anchors"] = recovered
+    result["source_pdf_recovery_candidates"] = candidates
+    return result
+
+
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
@@ -135,64 +209,8 @@ def main() -> int:
     parser.add_argument("source_pdf_audit", type=Path)
     parser.add_argument("-o", "--output", type=Path, default=Path("source_inventory_recovered.json"))
     args = parser.parse_args()
-
-    inventory = load_json(args.source_inventory)
-    source_pdf_audit = load_json(args.source_pdf_audit)
-    units = list(inventory.get("units", []))
-    inventory_text = "\n".join(unit.get("audit_text") or unit.get("raw_text") or "" for unit in units)
-    inventory_anchors = anchors(inventory_text)
-    source_anchors = set()
-    for value in source_pdf_audit.get("anchors", []):
-        source_anchors.update(anchors(str(value)))
-    missing = sorted(source_anchors - inventory_anchors)
-    locations = source_pdf_audit.get("anchor_locations", {})
-    recovered = []
-    seen_snippets: set[tuple[int, str]] = set()
-    for ordinal, anchor in enumerate(missing):
-        hits = locations.get(anchor) if isinstance(locations, dict) else None
-        if not hits:
-            continue
-        kind = recovery_kind(anchor)
-        hit = None
-        snippet = ""
-        for candidate in hits:
-            candidate_snippet = re.sub(r"\s+", " ", str(candidate.get("snippet", ""))).strip()
-            if credible_recovery_snippet(candidate_snippet, anchor, kind):
-                hit = candidate
-                snippet = trim_to_anchor(candidate_snippet, anchor)
-                break
-        if hit is None:
-            continue
-        page = int(hit.get("page", 0))
-        if not snippet:
-            continue
-        key = (page, snippet.lower())
-        if key in seen_snippets:
-            continue
-        seen_snippets.add(key)
-        unit_id = f"source-pdf-recovery:p{page}:{slug(anchor)}"
-        unit = {
-            "unit_id": unit_id,
-            "granularity": "block",
-            "page": page,
-            "dtype": recovery_dtype(kind),
-            "raw_text": snippet,
-            "audit_text": snippet.lower(),
-            "bbox": pseudo_bbox(hit, ordinal),
-            "recovery": {
-                "rule_id": "G3R",
-                "anchor": anchor,
-                "kind": kind,
-                "source": "source_pdf_audit",
-                "requires_review": True,
-            },
-        }
-        units.append(unit)
-        recovered.append({"anchor": anchor, "unit_id": unit_id, "page": page, "snippet": snippet})
-
-    inventory["units"] = units
-    inventory["source_pdf_recovered_anchors"] = recovered
-    args.output.write_text(json.dumps(inventory, ensure_ascii=False, indent=2), encoding="utf-8")
+    result = recover_inventory(load_json(args.source_inventory), load_json(args.source_pdf_audit))
+    args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(args.output)
     return 0
 

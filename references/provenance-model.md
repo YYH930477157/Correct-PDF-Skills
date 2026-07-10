@@ -81,4 +81,31 @@ Any other discard reason is `needs_review`.
 }
 ```
 
-Override can move `review` to `draft`. It cannot create `final`; hard gates must rerun and pass.
+A decision may resolve only the exact bound `needs_review` item. It cannot override content loss or post-render loss; all gates must rerun before `final`.
+
+## Audited Review Decision
+
+```json
+{
+  "schema_version": "0.2",
+  "reviewer": "reviewer-id",
+  "reviewed_at": "2026-07-10T00:00:00Z",
+  "artifacts": {
+    "source_inventory_sha256": "...",
+    "repair_manifest_sha256": "...",
+    "source_pdf_audit_sha256": "...",
+    "source_pdf_sha256": "..."
+  },
+  "decisions": [
+    {
+      "action": "accept_review",
+      "review_item_id": "review:G3R:...",
+      "rule_id": "G3R",
+      "unit_ids": ["source-pdf-recovery:p4:4-2"],
+      "reason": "Visually checked against the bound source PDF."
+    }
+  ]
+}
+```
+
+All supplied refs must exactly equal the review item's refs. Artifact hash mismatch, partial refs, missing timestamp, or missing item ID rejects the decision.

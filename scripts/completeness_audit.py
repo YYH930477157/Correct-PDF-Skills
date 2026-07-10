@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import re
@@ -184,6 +185,68 @@ def char_count(text: str) -> int:
     return len(re.sub(r"\s+", "", text or ""))
 
 
+def file_sha256(path: Path | None) -> str | None:
+    if not path:
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def source_pdf_evidence_findings(
+    source_pdf_audit: dict[str, Any] | None,
+    source_units: list[dict[str, Any]],
+    output_blocks: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    if not source_pdf_audit:
+        return {"status": "not_provided", "missing_inventory_pages": [], "missing_media_pages": []}, []
+    inventory_pages = {int(unit.get("page", 0)) for unit in source_units}
+    emitted_refs = {
+        str(ref)
+        for block in output_blocks
+        if block.get("disposition") != "discarded"
+        for ref in block.get("source_refs", [])
+    }
+    media_types = {"image", "figure", "caption", "table", "table_body"}
+    emitted_media_pages = {
+        int(unit.get("page", 0))
+        for unit in source_units
+        if unit.get("unit_id") in emitted_refs and str(unit.get("dtype", "")).lower() in media_types
+    }
+    missing_inventory_pages = []
+    missing_media_pages = []
+    for page in source_pdf_audit.get("pages", []):
+        page_index = int(page.get("page", 0))
+        has_source_evidence = bool(page.get("text_chars", 0) or page.get("image_count", 0) or page.get("drawing_count", 0))
+        if has_source_evidence and page_index not in inventory_pages:
+            missing_inventory_pages.append(page_index)
+        significant_images = int(page.get("significant_image_count", page.get("image_count", 0) if not page.get("text_chars", 0) else 0))
+        significant_drawings = int(page.get("significant_drawing_count", 0))
+        if (significant_images or significant_drawings) and page_index not in emitted_media_pages:
+            missing_media_pages.append(
+                {
+                    "page": page_index,
+                    "significant_image_count": significant_images,
+                    "significant_drawing_count": significant_drawings,
+                }
+            )
+    findings = []
+    if missing_inventory_pages:
+        findings.append({"rule_id": "G1P", "reason": "source_pdf_page_has_no_inventory_evidence", "pages": sorted(set(missing_inventory_pages))})
+    if missing_media_pages:
+        findings.append({"rule_id": "G4M", "reason": "source_pdf_media_has_no_emitted_media_evidence", "pages": missing_media_pages[:100]})
+    return {
+        "status": "review" if findings else "pass",
+        "source_page_count": source_pdf_audit.get("page_count"),
+        "inventory_pages": sorted(inventory_pages),
+        "emitted_media_pages": sorted(emitted_media_pages),
+        "missing_inventory_pages": sorted(set(missing_inventory_pages)),
+        "missing_media_pages": missing_media_pages[:100],
+    }, findings
+
+
 def canonical_tokens(text: str) -> list[str]:
     decoded = html.unescape(text or "")
     decoded = re.sub(r"</?\s*[A-Za-z][A-Za-z0-9:-]*(?:\s+[^<>]*?)?>", " ", decoded)
@@ -222,14 +285,20 @@ def semantic_sample_units(units: list[dict[str, Any]], dispositions: dict[str, s
     return [candidates[i] for i in sorted(indexes)[:8]]
 
 
-def local_semantic_sampling(units: list[dict[str, Any]], dispositions: dict[str, str], output_text: str) -> dict[str, Any]:
+def local_semantic_sampling(units: list[dict[str, Any]], dispositions: dict[str, str], output_blocks: list[dict[str, Any]]) -> dict[str, Any]:
     samples = []
     failures = []
     for unit in semantic_sample_units(units, dispositions):
         text = unit.get("audit_text") or unit.get("raw_text") or ""
-        coverage = token_coverage(text, output_text)
+        unit_id = unit.get("unit_id")
+        mapped_text = "\n".join(
+            block.get("audit_text") or block.get("raw_text") or ""
+            for block in output_blocks
+            if block.get("disposition") != "discarded" and unit_id in block.get("source_refs", [])
+        )
+        coverage = token_coverage(text, mapped_text)
         sample = {
-            "unit_id": unit.get("unit_id"),
+            "unit_id": unit_id,
             "page": unit.get("page"),
             "coverage": round(coverage, 4),
             "token_count": len(canonical_tokens(text)),
@@ -238,25 +307,41 @@ def local_semantic_sampling(units: list[dict[str, Any]], dispositions: dict[str,
         if coverage < 0.85:
             failure = dict(sample)
             failure["sample"] = text[:240]
+            failure["mapped_output_missing"] = not bool(mapped_text.strip())
             failures.append(failure)
+    if not samples and any(
+        unit.get("granularity") == "block"
+        and dispositions.get(unit.get("unit_id")) != "discarded"
+        and (unit.get("audit_text") or unit.get("raw_text") or "").strip()
+        for unit in units
+    ):
+        return {
+            "status": "review",
+            "mode": "local_source_ref",
+            "threshold": 0.85,
+            "sample_count": 0,
+            "samples": [],
+            "failures": [],
+            "reason": "non_empty_document_has_no_eligible_semantic_samples",
+        }
     if failures:
         return {
             "status": "review",
-            "mode": "local_deterministic",
+            "mode": "local_source_ref",
             "threshold": 0.85,
             "sample_count": len(samples),
             "samples": samples,
             "failures": failures,
-            "reason": "semantic sample token coverage below threshold",
+            "reason": "source-ref-local sample token coverage below threshold",
         }
     return {
         "status": "pass",
-        "mode": "local_deterministic",
+        "mode": "local_source_ref",
         "threshold": 0.85,
         "sample_count": len(samples),
         "samples": samples,
         "failures": [],
-        "reason": "local deterministic semantic samples covered by output",
+        "reason": "source-ref-local samples covered by mapped output",
     }
 
 
@@ -274,26 +359,63 @@ def decision_refs(decision: dict[str, Any]) -> set[str]:
     return refs
 
 
+def stable_review_item_id(item: dict[str, Any]) -> str:
+    payload = {
+        "rule_id": item.get("rule_id"),
+        "reason": item.get("reason"),
+        "refs": sorted(item_refs(item)),
+        "anchors": sorted(str(value) for value in item.get("anchors", []) if value),
+        "pages": item.get("pages", []),
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"review:{item.get('rule_id', 'unknown')}:{hashlib.sha256(encoded).hexdigest()[:20]}"
+
+
+def assign_review_item_ids(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    prepared = []
+    for item in items:
+        copy = dict(item)
+        copy["review_item_id"] = stable_review_item_id(copy)
+        prepared.append(copy)
+    return prepared
+
+
 def decision_matches_item(decision: dict[str, Any], item: dict[str, Any]) -> bool:
     if decision.get("action") != "accept_review":
         return False
     if decision.get("rule_id") != item.get("rule_id"):
         return False
+    if decision.get("review_item_id") != item.get("review_item_id"):
+        return False
     refs = decision_refs(decision)
     if refs:
-        return refs.issubset(item_refs(item))
+        return refs == item_refs(item)
     reason = decision.get("match_reason")
     return bool(reason and reason == item.get("reason"))
 
 
-def apply_review_decisions(needs_review: list[dict[str, Any]], decisions_doc: dict[str, Any] | None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def apply_review_decisions(
+    needs_review: list[dict[str, Any]],
+    decisions_doc: dict[str, Any] | None,
+    artifact_context: dict[str, str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if not decisions_doc:
         return needs_review, {"status": "not_provided", "applied": [], "rejected": []}
     reviewer = decisions_doc.get("reviewer")
+    reviewed_at = decisions_doc.get("reviewed_at")
     applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
-    if not reviewer:
-        return needs_review, {"status": "invalid", "reason": "missing_reviewer", "applied": [], "rejected": decisions_doc.get("decisions", [])}
+    if not reviewer or not reviewed_at:
+        return needs_review, {"status": "invalid", "reason": "missing_reviewer_or_reviewed_at", "applied": [], "rejected": decisions_doc.get("decisions", [])}
+    expected = artifact_context or {}
+    supplied = decisions_doc.get("artifacts") or {}
+    mismatches = {
+        key: {"expected": value, "supplied": supplied.get(key)}
+        for key, value in expected.items()
+        if value and supplied.get(key) != value
+    }
+    if mismatches:
+        return needs_review, {"status": "invalid", "reason": "artifact_hash_mismatch", "mismatches": mismatches, "applied": [], "rejected": decisions_doc.get("decisions", [])}
     decisions = decisions_doc.get("decisions", [])
     unresolved: list[dict[str, Any]] = []
     used_decisions: set[int] = set()
@@ -315,6 +437,7 @@ def apply_review_decisions(needs_review: list[dict[str, Any]], decisions_doc: di
         used_decisions.add(matched_index)
         applied.append(
             {
+                "review_item_id": item.get("review_item_id"),
                 "rule_id": item.get("rule_id"),
                 "item_reason": item.get("reason"),
                 "reviewer": reviewer,
@@ -324,7 +447,7 @@ def apply_review_decisions(needs_review: list[dict[str, Any]], decisions_doc: di
         )
     for index, decision in enumerate(decisions):
         if index not in used_decisions:
-            rejected.append({"decision": decision, "reason": "no_matching_needs_review_item_or_missing_reason"})
+            rejected.append({"decision": decision, "reason": "no_exact_matching_review_item_or_missing_reason"})
     return unresolved, {"status": "applied", "reviewer": reviewer, "applied": applied, "rejected": rejected}
 
 
@@ -334,7 +457,7 @@ def page_text(units: list[dict[str, Any]], dispositions: dict[str, str] | None =
         if dispositions and dispositions.get(unit.get("unit_id")) == "discarded":
             continue
         if unit.get("granularity") == "block":
-            pages[int(unit.get("page", 0))].append(unit.get("audit_text", ""))
+            pages[int(unit.get("page", 0))].append(unit.get("audit_text") or unit.get("raw_text") or "")
     return {page: "\n".join(parts) for page, parts in pages.items()}
 
 
@@ -345,7 +468,7 @@ def output_page_text(blocks: list[dict[str, Any]]) -> dict[int, str]:
             continue
         page = block.get("page")
         if page is not None:
-            pages[int(page)].append(block.get("audit_text", ""))
+            pages[int(page)].append(block.get("audit_text") or block.get("raw_text") or "")
     return {page: "\n".join(parts) for page, parts in pages.items()}
 
 
@@ -365,8 +488,8 @@ def main() -> int:
     source_units = inventory.get("units", [])
     output_blocks = manifest.get("output_blocks", [])
     dispositions = manifest.get("source_dispositions", {})
-    source_text = "\n".join(u.get("audit_text", "") for u in source_units if u.get("granularity") in {"block", "page"} and dispositions.get(u.get("unit_id")) != "discarded")
-    output_text = "\n".join(b.get("audit_text", "") for b in output_blocks if b.get("disposition") != "discarded")
+    source_text = "\n".join((u.get("audit_text") or u.get("raw_text") or "") for u in source_units if u.get("granularity") in {"block", "page"} and dispositions.get(u.get("unit_id")) != "discarded")
+    output_text = "\n".join((b.get("audit_text") or b.get("raw_text") or "") for b in output_blocks if b.get("disposition") != "discarded")
 
     content_loss: list[dict[str, Any]] = []
     needs_review: list[dict[str, Any]] = []
@@ -406,12 +529,7 @@ def main() -> int:
         if ratio < hard_floor:
             low_coverage.append(item)
         elif ratio < args.text_threshold:
-            if char_ratio >= 0.98:
-                suppressed = dict(item)
-                suppressed["suppressed_reason"] = "char_coverage_complete_and_anchor_audits_handle_structural_loss"
-                suppressed_review.append(suppressed)
-            else:
-                review_coverage.append(item)
+            review_coverage.append(item)
     audits["G2_text_amount"] = {
         "threshold": args.text_threshold,
         "hard_floor": round(hard_floor, 4),
@@ -474,11 +592,14 @@ def main() -> int:
 
     source_figures = sorted(anchors(source_text, FIGURE_TABLE_RE))
     output_figures = sorted(anchors(output_text, FIGURE_TABLE_RE))
+    media_audit, media_findings = source_pdf_evidence_findings(source_pdf_audit, source_units, output_blocks)
     audits["G4_figure_table_audit"] = {
         "source_figure_table_anchors": source_figures,
         "output_figure_table_anchors": output_figures,
         "missing": sorted(set(source_figures) - set(output_figures)),
+        "source_pdf_media": media_audit,
     }
+    needs_review.extend(media_findings)
 
     unmapped = [u["unit_id"] for u in source_units if dispositions.get(u["unit_id"]) == "escalated" and u.get("granularity") == "block"]
     if unmapped:
@@ -503,7 +624,7 @@ def main() -> int:
         }
         needs_review.append({"rule_id": "G3R", "reason": "source_pdf_recovered_content_requires_review", "units": recovered_units[:100]})
 
-    g5_audit = local_semantic_sampling(source_units, dispositions, output_text)
+    g5_audit = local_semantic_sampling(source_units, dispositions, output_blocks)
     audits["G5_ai_semantic_sampling"] = g5_audit
     if g5_audit.get("status") == "review":
         needs_review.append({"rule_id": "G5", "reason": "local_semantic_sampling_below_threshold", "failures": g5_audit.get("failures", [])[:20]})
@@ -522,7 +643,17 @@ def main() -> int:
     for item in manifest.get("not_implemented", []):
         needs_review.append({"rule_id": item["rule_id"], "reason": "not_implemented_if_applicable"})
 
-    needs_review, review_decision_audit = apply_review_decisions(needs_review, review_decisions)
+    needs_review = assign_review_item_ids(needs_review)
+    artifact_context = {
+        "source_inventory_sha256": file_sha256(args.source_inventory),
+        "repair_manifest_sha256": file_sha256(args.repair_manifest),
+    }
+    if source_pdf_audit:
+        artifact_context["source_pdf_audit_sha256"] = file_sha256(args.source_pdf_audit)
+        if source_pdf_audit.get("source_pdf_sha256"):
+            artifact_context["source_pdf_sha256"] = source_pdf_audit["source_pdf_sha256"]
+    needs_review, review_decision_audit = apply_review_decisions(needs_review, review_decisions, artifact_context)
+    review_decision_audit["artifact_context"] = artifact_context
     audits["review_decisions"] = review_decision_audit
 
     status = "review" if content_loss else ("draft" if needs_review else "final")

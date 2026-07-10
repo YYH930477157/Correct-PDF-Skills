@@ -20,8 +20,8 @@ def run(*args: str) -> None:
     subprocess.run([sys.executable, *args], check=True)
 
 
-def html_to_pdf(html_path: Path, pdf_path: Path) -> dict[str, str]:
-    candidates = [
+def html_to_pdf(html_path: Path, pdf_path: Path, candidates: list[str | None] | None = None) -> dict[str, str]:
+    candidates = candidates if candidates is not None else [
         shutil.which("chrome"),
         shutil.which("chrome.exe"),
         shutil.which("msedge"),
@@ -33,7 +33,7 @@ def html_to_pdf(html_path: Path, pdf_path: Path) -> dict[str, str]:
     ]
     chrome = next((candidate for candidate in candidates if candidate and Path(candidate).exists()), None)
     if not chrome:
-        return {"status": "skipped", "reason": "headless_chrome_not_found", "artifact": str(html_path)}
+        return {"status": "failed", "reason": "headless_chrome_not_found", "artifact": None}
     subprocess.run(
         [chrome, "--headless=new", "--disable-gpu", f"--print-to-pdf={pdf_path}", str(html_path)],
         check=True,
@@ -44,8 +44,16 @@ def html_to_pdf(html_path: Path, pdf_path: Path) -> dict[str, str]:
     return {"status": "created", "artifact": str(pdf_path)}
 
 
-def main() -> int:
+def delivery_exit_code(no_pdf: bool, pdf_generation: dict[str, str], pdf_exists: bool) -> tuple[str, int]:
+    if no_pdf:
+        return "html_only", 0
+    if pdf_generation.get("status") == "created" and pdf_exists:
+        return "delivered", 0
+    return "failed", 2
+
+
     parser = argparse.ArgumentParser(description="Run PDF layout repair pipeline.")
+def main() -> int:
     parser.add_argument("input", type=Path, help="MinerU JSON or source_inventory.json")
     parser.add_argument("-o", "--output-dir", type=Path, default=Path("pdf-layout-repair-output"))
     parser.add_argument("--input-kind", choices=["mineru-json", "inventory"], default="mineru-json")
@@ -107,9 +115,12 @@ def main() -> int:
 
     run(str(SCRIPTS / "post_render_audit.py"), str(rendered_artifact), str(completeness), "-o", str(post))
     run(str(SCRIPTS / "render_report.py"), str(completeness), str(post), "-o", str(report))
+    completeness_doc = json.loads(completeness.read_text(encoding="utf-8-sig"))
+    post_doc = json.loads(post.read_text(encoding="utf-8-sig"))
+    delivery_status, exit_code = delivery_exit_code(args.no_pdf, pdf_generation, pdf.exists())
 
     summary = {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
         "output_dir": str(out),
         "artifacts": {
             "source_inventory": str(inventory),
@@ -125,11 +136,16 @@ def main() -> int:
             **optional_artifacts,
         },
         "pdf_generation": pdf_generation,
+        "status": {
+            "document_status": completeness_doc.get("document_status"),
+            "render_status": post_doc.get("render_status"),
+            "delivery_status": delivery_status,
+        },
         "llm_api": {"status": "not_configured", "reason": "left blank intentionally"},
     }
     (out / "pipeline_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(out / "pipeline_summary.json")
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

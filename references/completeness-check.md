@@ -74,3 +74,12 @@ G5 semantic sampling:
 - `toc_page`: missing TOC structural entries is `content_loss`.
 - `scan_page`: source PDF audit reports text/image evidence; unavailable OCR means `needs_review` if text coverage is insufficient.
 - `figure_heavy_page`: missing required captions is `content_loss`.
+
+## Fail-Closed Details
+
+- G1P consumes `source_pdf_audit.pages` so textless scan/image pages are not invisible to inventory-based G1.
+- G4M uses significant image/drawing area evidence and emits one aggregated review item for pages without emitted media provenance.
+- G2 never treats equal character counts as proof of semantic preservation.
+- G5 samples are checked against only mapped output blocks. Text duplicated elsewhere cannot satisfy the sampled source unit.
+- Recovery candidates without complete line bbox evidence remain evidence-only. Section lines additionally require heading-like typography; watermark and truncated-body candidates are rejected.
+- Review decisions use stable review item IDs, exact refs, timestamps, and current inventory/manifest/source-PDF audit/source-PDF SHA-256 values.

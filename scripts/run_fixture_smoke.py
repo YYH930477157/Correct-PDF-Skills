@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -229,14 +230,14 @@ def test_g2_review_band(tmp: Path) -> None:
     assert_true(any(item.get("rule_id") == "G2" for item in report["needs_review"]), "G2 review band did not produce needs_review")
 
 
-def test_g2_full_char_coverage_with_anchors_is_suppressed(tmp: Path) -> None:
+def test_g2_same_length_substitution_requires_review(tmp: Path) -> None:
     inventory = tmp / "g2-char-complete" / "source_inventory.json"
     repaired = tmp / "g2-char-complete" / "repaired_blocks.json"
     manifest = tmp / "g2-char-complete" / "repair_manifest.json"
     completeness = tmp / "g2-char-complete" / "completeness_report.json"
     inventory.parent.mkdir(parents=True, exist_ok=True)
-    source_text = "4.2 Remote meter commissioning requires secure activation and operator confirmation."
-    output_text = "4.2 Remote-meter commissioning requires secure activation and operator confirmation."
+    source_text = "alpha beta gamma delta epsilon zeta theta"
+    output_text = "bravo beta gamma delta epsilon zeta theta"
     write_json(
         inventory,
         {
@@ -279,9 +280,9 @@ def test_g2_full_char_coverage_with_anchors_is_suppressed(tmp: Path) -> None:
     run(str(SCRIPTS / "build_manifest.py"), str(inventory), str(repaired), "-o", str(manifest))
     run(str(SCRIPTS / "completeness_audit.py"), str(inventory), str(manifest), "-o", str(completeness), "--text-threshold", "1.01")
     report = read_json(completeness)
-    assert_true(not any(item.get("rule_id") == "G2" for item in report["needs_review"]), f"G2 should suppress char-complete pages with anchors intact: {report['needs_review']}")
+    assert_true(any(item.get("rule_id") == "G2" for item in report["needs_review"] + report["content_loss"]), f"Same-length substitution was silently accepted: {report}")
     suppressed = report["audits"].get("G2_text_amount", {}).get("suppressed_review", [])
-    assert_true(suppressed and suppressed[0].get("page") == 0, f"G2 suppression was not audited: {suppressed}")
+    assert_true(not suppressed, f"Same-length substitution must not be suppressed: {suppressed}")
 
 
 def test_g5_local_semantic_sampling_passes_when_samples_are_covered(tmp: Path) -> None:
@@ -359,23 +360,14 @@ def test_review_decisions_resolve_matched_needs_review(tmp: Path) -> None:
             "source": "fixture",
             "units": [
                 {
-                    "unit_id": "source-pdf-recovery:p0:4-2",
-                    "granularity": "block",
-                    "page": 0,
-                    "dtype": "title",
-                    "raw_text": "4.2 Recovered section",
-                    "audit_text": "4.2 recovered section",
-                    "bbox": [0, 0, 100, 20],
+                    "unit_id": "source-pdf-recovery:p0:4-2", "granularity": "block", "page": 0, "dtype": "title",
+                    "raw_text": "4.2 Recovered section", "audit_text": "4.2 recovered section", "bbox": [0, 0, 100, 20],
                     "recovery": {"rule_id": "G3R", "anchor": "4.2", "kind": "section", "requires_review": True},
                 },
                 {
-                    "unit_id": "mineru:p0:block1",
-                    "granularity": "block",
-                    "page": 0,
-                    "dtype": "table",
+                    "unit_id": "mineru:p0:block1", "granularity": "block", "page": 0, "dtype": "table",
                     "raw_text": "Table row contains expected term modulo in source.",
-                    "audit_text": "table row contains expected term modulo in source.",
-                    "bbox": [0, 30, 100, 60],
+                    "audit_text": "table row contains expected term modulo in source.", "bbox": [0, 30, 100, 60],
                 },
             ],
         },
@@ -383,59 +375,41 @@ def test_review_decisions_resolve_matched_needs_review(tmp: Path) -> None:
     write_json(
         manifest,
         {
-            "schema_version": "0.1",
-            "source_inventory": str(inventory),
-            "document_status": "draft",
+            "schema_version": "0.1", "source_inventory": str(inventory), "document_status": "draft",
             "output_blocks": [
                 {
-                    "output_id": "out:source-pdf-recovery:p0:4-2",
-                    "raw_text": "4.2 Recovered section",
-                    "audit_text": "4.2 recovered section",
-                    "source_refs": ["source-pdf-recovery:p0:4-2"],
-                    "operation": "emit",
-                    "confidence": 1.0,
-                    "disposition": "emitted",
-                    "page": 0,
+                    "output_id": "out:source-pdf-recovery:p0:4-2", "raw_text": "4.2 Recovered section",
+                    "audit_text": "4.2 recovered section", "source_refs": ["source-pdf-recovery:p0:4-2"],
+                    "operation": "emit", "confidence": 1.0, "disposition": "emitted", "page": 0,
                 },
                 {
-                    "output_id": "out:mineru:p0:block1",
-                    "raw_text": "Table row contains expected term modulo in source.",
-                    "audit_text": "table row contains expected term modulo in source.",
-                    "source_refs": ["mineru:p0:block1"],
-                    "operation": "emit",
-                    "confidence": 1.0,
-                    "disposition": "emitted",
-                    "page": 0,
+                    "output_id": "out:mineru:p0:block1", "raw_text": "Table row contains expected term modulo in source.",
+                    "audit_text": "table row contains expected term modulo in source.", "source_refs": ["mineru:p0:block1"],
+                    "operation": "emit", "confidence": 1.0, "disposition": "emitted", "page": 0,
                 },
             ],
-            "source_dispositions": {
-                "source-pdf-recovery:p0:4-2": "emitted",
-                "mineru:p0:block1": "emitted",
-            },
+            "source_dispositions": {"source-pdf-recovery:p0:4-2": "emitted", "mineru:p0:block1": "emitted"},
             "findings": [],
-            "needs_review": [
-                {"rule_id": "C3", "reason": "possible_foreign_language_contamination", "source_refs": ["mineru:p0:block1"]}
-            ],
+            "needs_review": [{"rule_id": "C3", "reason": "possible_foreign_language_contamination", "source_refs": ["mineru:p0:block1"]}],
             "not_implemented": [],
         },
     )
+    run(str(SCRIPTS / "completeness_audit.py"), str(inventory), str(manifest), "-o", str(completeness))
+    initial = read_json(completeness)
+    items = {item["rule_id"]: item for item in initial["needs_review"]}
+    context = initial["audits"]["review_decisions"]["artifact_context"]
     write_json(
         decisions,
         {
-            "schema_version": "0.1",
-            "reviewer": "fixture-reviewer",
+            "schema_version": "0.2", "reviewer": "fixture-reviewer", "reviewed_at": "2026-07-10T00:00:00Z", "artifacts": context,
             "decisions": [
                 {
-                    "action": "accept_review",
-                    "rule_id": "G3R",
-                    "unit_ids": ["source-pdf-recovery:p0:4-2"],
-                    "reason": "Recovered source PDF section was visually checked against the source page.",
+                    "action": "accept_review", "review_item_id": items["G3R"]["review_item_id"], "rule_id": "G3R",
+                    "unit_ids": ["source-pdf-recovery:p0:4-2"], "reason": "Recovered source PDF section was visually checked against the source page.",
                 },
                 {
-                    "action": "accept_review",
-                    "rule_id": "C3",
-                    "source_refs": ["mineru:p0:block1"],
-                    "reason": "The foreign term is present in the source table and is not extraction contamination.",
+                    "action": "accept_review", "review_item_id": items["C3"]["review_item_id"], "rule_id": "C3",
+                    "source_refs": ["mineru:p0:block1"], "reason": "The foreign term is present in the source table and is not extraction contamination.",
                 },
             ],
         },
@@ -663,7 +637,7 @@ def test_source_pdf_anchor_recovery_downgrades_loss_to_review(tmp: Path) -> None
             "schema_version": "0.1",
             "anchors": ["4.1", "4.2"],
             "anchor_locations": {
-                "4.2": [{"page": 0, "snippet": "4.2 Recovered source section text"}],
+                "4.2": [{"page": 0, "snippet": "4.2 Recovered source section text", "line_text": "4.2 Recovered source section text", "heading_like": True, "bbox": [40, 120, 260, 138]}],
             },
         },
     )
@@ -701,7 +675,7 @@ def test_source_pdf_recovery_participates_in_section_sequence(tmp: Path) -> None
             "schema_version": "0.1",
             "anchors": ["3.1", "3.2", "3.3"],
             "anchor_locations": {
-                "3.2": [{"page": 0, "char_start": 160, "snippet": "3.2 Recovered source section"}],
+                "3.2": [{"page": 0, "snippet": "3.2 Recovered source section", "line_text": "3.2 Recovered source section", "heading_like": True, "bbox": [40, 160, 260, 178]}],
             },
         },
     )
@@ -738,7 +712,7 @@ def test_source_pdf_recovery_skips_toc_and_inline_reference_candidates(tmp: Path
             "schema_version": "0.1",
             "anchors": ["5.4.19.16", "5.4.19.17", "5.8", "2.5.2", "1.000.000"],
             "anchor_locations": {
-                "5.4.19.17": [{"page": 0, "snippet": "prefix text 5.4.19.17 Recovered section title Body text"}],
+                "5.4.19.17": [{"page": 0, "snippet": "prefix text 5.4.19.17 Recovered section title Body text", "line_text": "5.4.19.17 Recovered section title", "heading_like": True, "bbox": [40, 120, 300, 138]}],
                 "5.8": [{"page": 1, "snippet": "attempts ................................................ 67 5.8 Power supply ................................"}],
                 "2.5.2": [{"page": 2, "snippet": "attributes type U32; see paragraph 2.5.2 UdM AOL When reading"}],
                 "1.000.000": [{"page": 3, "snippet": "Post- R Battery 0-1.000.000 U16 Litre/ h *0.1 R"}],
@@ -778,7 +752,7 @@ def test_source_pdf_recovery_rejects_obis_and_numeric_field_codes(tmp: Path) -> 
                 "96.1.0.255": [{"page": 1, "snippet": "96.1.0.255 logical_name octet-string"}],
                 "802.15": [{"page": 2, "snippet": "EN 802.15 wireless protocol"}],
                 "0.5": [{"page": 3, "snippet": "0.5 L/h threshold value"}],
-                "5.4.19.17": [{"page": 4, "snippet": "5.4.19.17 Compact frame values"}],
+                "5.4.19.17": [{"page": 4, "snippet": "5.4.19.17 Compact frame values", "line_text": "5.4.19.17 Compact frame values", "heading_like": True, "bbox": [40, 120, 300, 138]}],
             },
         },
     )
@@ -815,10 +789,10 @@ def test_source_pdf_recovery_participates_in_table_figure_sequence(tmp: Path) ->
             "schema_version": "0.1",
             "anchors": ["Table 8", "Table 9", "Table 10", "Table 11", "Figure 2", "Figure 3", "Figure 4", "Figure 5"],
             "anchor_locations": {
-                "table 9": [{"page": 0, "char_start": 180, "snippet": "Table 9 - Recovered"}],
-                "table 10": [{"page": 0, "char_start": 260, "snippet": "Table 10 - Recovered"}],
-                "figure 3": [{"page": 1, "char_start": 180, "snippet": "Figure 3 - Recovered"}],
-                "figure 4": [{"page": 1, "char_start": 260, "snippet": "Figure 4 - Recovered"}],
+                "table 9": [{"page": 0, "snippet": "Table 9 - Recovered", "line_text": "Table 9 - Recovered", "bbox": [40, 180, 260, 198]}],
+                "table 10": [{"page": 0, "snippet": "Table 10 - Recovered", "line_text": "Table 10 - Recovered", "bbox": [40, 260, 260, 278]}],
+                "figure 3": [{"page": 1, "snippet": "Figure 3 - Recovered", "line_text": "Figure 3 - Recovered", "bbox": [40, 180, 260, 198]}],
+                "figure 4": [{"page": 1, "snippet": "Figure 4 - Recovered", "line_text": "Figure 4 - Recovered", "bbox": [40, 260, 260, 278]}],
             },
         },
     )
@@ -1343,8 +1317,8 @@ def test_remaining_review_noise_boundaries(tmp: Path) -> None:
             "granularity": "block",
             "page": 0,
             "dtype": "footer",
-            "raw_text": "© UNI\nPagina 8",
-            "audit_text": "© uni pagina 8",
+            "raw_text": "漏 UNI\nPagina 8",
+            "audit_text": "漏 uni pagina 8",
             "bbox": [439, 799, 528, 812],
         },
         {
@@ -1781,7 +1755,7 @@ def main() -> int:
         test_general_repairs(tmp)
         test_general_repair_negatives(tmp)
         test_g2_review_band(tmp)
-        test_g2_full_char_coverage_with_anchors_is_suppressed(tmp)
+        test_g2_same_length_substitution_requires_review(tmp)
         test_g5_local_semantic_sampling_passes_when_samples_are_covered(tmp)
         test_canonical_tokens_preserve_angle_expressions()
         test_review_decisions_resolve_matched_needs_review(tmp)
@@ -1823,6 +1797,7 @@ def main() -> int:
 
             shutil.copytree(tmp, keep_path)
             print(f"fixture artifacts: {keep_path}")
+    run(str(SCRIPTS / "safety_regression_cases.py"))
     print("fixture smoke tests passed")
     return 0
 

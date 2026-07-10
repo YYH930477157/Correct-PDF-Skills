@@ -63,7 +63,7 @@ Implemented in the first pass:
 - G1 page coverage.
 - G2 page text amount audit.
 - G3 required/candidate anchor audit; G3P independent source-PDF anchor audit when source PDF is supplied.
-- G3R optional source-PDF anchor recovery from PyMuPDF snippets; recovered content requires review unless resolved by audited review decisions.
+- G3R optional source-PDF structural-line recovery; snippet-only evidence is not emitted, and recovered content requires exact hash-bound review.
 - G4 figure/table/caption audit.
 - G5 local deterministic semantic sampling; remote LLM API intentionally optional/blank.
 - H provenance, raw/audit text separation, bbox space fields.
@@ -107,3 +107,12 @@ Read only what is needed:
 - Read MinerU tokens from environment variables only.
 - Do not log full document text.
 - Clean temporary files unless the user asks to keep artifacts.
+
+## Fail-Closed Addendum
+
+- Independent source PDF page/media evidence is always audited when `--source-pdf` is provided (`G1P`, `G4M`).
+- Character count is supporting evidence only; it cannot suppress a token-coverage finding.
+- G5 is source-ref-local deterministic sampling. Empty sampling on a non-empty document is `needs_review`.
+- Source-PDF snippets are evidence, not content. Only complete bbox-backed structural lines with required heading/caption evidence may enter recovered inventory, and every emitted recovery remains `G3R needs_review`.
+- Review approvals must exactly match `review_item_id` and refs and must bind to the current artifact SHA-256 context and `reviewed_at` timestamp.
+- A requested PDF that was not generated is not deliverable; the pipeline returns non-zero and records `delivery_status: failed`.
